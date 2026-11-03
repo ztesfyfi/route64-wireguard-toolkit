@@ -67,7 +67,7 @@ Route64 的隧道地址、对端公钥和 Endpoint 可从当前面板导出的 W
 
 - `ROUTE64_ALLOWED_IPS` 默认值为 `::/1,8000::/1`。使用前请对照 Route64 控制面板确认是否适合你的隧道配置。
 - `ROUTED_PREFIX` 表示由 VPS 路由转发的 IPv6 前缀，不是 WireGuard 隧道接口地址。
-- 可选的 `wg1` 用于连接下游 WireGuard 客户端。启用并配置客户端公钥后，当前 `ROUTED_PREFIX` 会加入该客户端 Peer 的 `AllowedIPs`。脚本不会替下游客户端安装配置，也不会配置局域网 RA / SLAAC。
+- 可选的 `wg1` 用于连接下游 WireGuard 客户端。监听端口默认自动选择未占用的高位 UDP 端口（49152–65535）；启用并配置客户端公钥后，当前 `ROUTED_PREFIX` 会加入该客户端 Peer 的 `AllowedIPs`。脚本不会替下游客户端安装配置，也不会配置局域网 RA / SLAAC。
 
 ## 安全提示
 
