@@ -38,3 +38,16 @@ Never share private keys, preshared keys, tokens, or unredacted config files. Th
 - 如果地址来源不确定、格式不合法，或与 VPS 现有路由/接口冲突，先停止安装并确认，不要尝试用猜测的 IP 继续部署。
 
 Route64 分配的传输地址和路由前缀不能从 VPS 本机可靠推算。请以当前 Route64 管理面板为准。
+
+
+## 使用配置导入助手
+
+建议从当前 Route64 管理面板重新下载 WireGuard 配置，再执行：
+
+```bash
+bash configure.sh /path/to/current-route64.conf
+```
+
+助手会从该配置读取隧道地址、对端公钥、Endpoint、AllowedIPs 和 MTU，并要求你输入当前隧道分配的路由前缀。它不会覆盖已有的 `config/config.env`。生成后请检查配置文件，尤其确认路由前缀来自当前隧道。
+
+如果导出的配置没有 PrivateKey，助手会保留空值；此时需要先生成本机密钥，并将对应公钥登记到 Route64，不能直接期待隧道握手成功。
