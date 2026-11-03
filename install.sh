@@ -4,6 +4,8 @@ TMP_DIR=""
 BACKUP_READY=0
 WG0_STARTED=0
 WG1_STARTED=0
+WG0_CREATED=0
+WG1_CREATED=0
 SYSCTL_OLD=""
 SYSCTL_CREATED=0
 backup_dir=""
@@ -14,7 +16,8 @@ cleanup(){
     echo "Installation failed; attempting rollback..." >&2
     if (( WG1_STARTED )); then systemctl disable --now wg-quick@wg1 >/dev/null 2>&1 || true; fi
     if (( WG0_STARTED )); then systemctl disable --now wg-quick@wg0 >/dev/null 2>&1 || true; fi
-    rm -f /etc/wireguard/wg0.conf /etc/wireguard/wg1.conf /etc/wireguard/wg0.key /etc/wireguard/wg1.key
+    if (( WG0_CREATED )); then rm -f /etc/wireguard/wg0.conf /etc/wireguard/wg0.key; fi
+    if (( WG1_CREATED )); then rm -f /etc/wireguard/wg1.conf /etc/wireguard/wg1.key; fi
     cp -a "$backup_dir/." /etc/wireguard/ 2>/dev/null || true
     if (( SYSCTL_CREATED )); then rm -f /etc/sysctl.d/90-route64-wireguard.conf; fi
     if [[ -n "$SYSCTL_OLD" ]]; then sysctl -w "net.ipv6.conf.all.forwarding=$SYSCTL_OLD" >/dev/null 2>&1 || true; fi
@@ -119,6 +122,7 @@ cp -a /etc/wireguard/. "$backup_dir/" 2>/dev/null || true
 BACKUP_READY=1
 make_key(){ local supplied="$1" target="$2"; if [[ -n "$supplied" ]]; then printf '%s\n' "$supplied" > "$target"; else umask 077; wg genkey > "$target"; fi; chmod 600 "$target"; }
 WG0_CREATED=1
+WG0_CREATED=1
 make_key "${ROUTE64_PRIVATE_KEY:-}" /etc/wireguard/wg0.key; echo "Route64 client public key (register in the Route64 manager if this is a newly generated key):"; wg pubkey < /etc/wireguard/wg0.key; p0="$(cat /etc/wireguard/wg0.key)"
 cat > /etc/wireguard/wg0.conf <<EOF
 [Interface]
@@ -136,6 +140,7 @@ chmod 600 /etc/wireguard/wg0.conf; unset p0 ROUTE64_PRIVATE_KEY
 # Parse generated configs before changing sysctl or starting services.
 wg-quick strip wg0 >/dev/null || { echo "Generated wg0.conf failed WireGuard validation." >&2; exit 1; }
 if [[ "${ENABLE_DOWNSTREAM_WG1:-no}" == yes ]]; then
+ WG1_CREATED=1
  make_key "${WG1_PRIVATE_KEY:-}" /etc/wireguard/wg1.key; p1="$(cat /etc/wireguard/wg1.key)"
  cat > /etc/wireguard/wg1.conf <<EOF
 [Interface]
