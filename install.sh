@@ -1,5 +1,31 @@
 #!/usr/bin/env bash
 set -Eeuo pipefail
+TMP_DIR=""
+BACKUP_READY=0
+WG0_STARTED=0
+WG1_STARTED=0
+SYSCTL_OLD=""
+SYSCTL_CREATED=0
+backup_dir=""
+
+cleanup(){
+  local rc=$?
+  if (( rc != 0 && BACKUP_READY )); then
+    echo "Installation failed; attempting rollback..." >&2
+    if (( WG1_STARTED )); then systemctl disable --now wg-quick@wg1 >/dev/null 2>&1 || true; fi
+    if (( WG0_STARTED )); then systemctl disable --now wg-quick@wg0 >/dev/null 2>&1 || true; fi
+    rm -f /etc/wireguard/wg0.conf /etc/wireguard/wg1.conf /etc/wireguard/wg0.key /etc/wireguard/wg1.key
+    cp -a "$backup_dir/." /etc/wireguard/ 2>/dev/null || true
+    if (( SYSCTL_CREATED )); then rm -f /etc/sysctl.d/90-route64-wireguard.conf; fi
+    if [[ -n "$SYSCTL_OLD" ]]; then sysctl -w "net.ipv6.conf.all.forwarding=$SYSCTL_OLD" >/dev/null 2>&1 || true; fi
+    echo "Rollback attempted. Backup: $backup_dir" >&2
+  fi
+  [[ -z "$TMP_DIR" ]] || rm -rf "$TMP_DIR"
+  trap - EXIT
+  exit "$rc"
+}
+trap cleanup EXIT
+
 CONFIG=""
 while (($#)); do case "$1" in --config) [[ $# -ge 2 ]] || { echo 'Missing config path' >&2; exit 2; }; CONFIG="$2"; shift 2;; -h|--help) echo 'Usage: sudo bash install.sh --config PATH'; exit 0;; *) echo "Unknown argument: $1" >&2; exit 2;; esac; done
 [[ $EUID -eq 0 ]] || { echo 'Run as root.' >&2; exit 1; }
@@ -11,7 +37,6 @@ if [[ -z "$CONFIG" ]]; then
   echo "Include [Interface] and [Peer]. Finish with a line containing END."
   TMP_DIR="$(mktemp -d /tmp/route64-wizard.XXXXXX)"
   chmod 700 "$TMP_DIR"
-  trap 'rm -rf "$TMP_DIR"' EXIT
   ROUTE_CONF="$TMP_DIR/route64.conf"
   : > "$ROUTE_CONF"
   while IFS= read -r line; do
@@ -86,8 +111,14 @@ PY
  echo "Selected downstream WireGuard UDP port: $WG1_LISTEN_PORT"
 fi
 install -d -m 700 /etc/wireguard /root/route64-wg-backups
-backup_dir="/root/route64-wg-backups/$(date +%Y%m%d-%H%M%S)"; mkdir -m 700 "$backup_dir"; cp -a /etc/wireguard/. "$backup_dir/" 2>/dev/null || true
+[[ ! -e /etc/sysctl.d/90-route64-wireguard.conf ]] || { echo 'Refusing to overwrite existing /etc/sysctl.d/90-route64-wireguard.conf' >&2; exit 1; }
+SYSCTL_OLD="$(sysctl -n net.ipv6.conf.all.forwarding 2>/dev/null || echo 0)"
+backup_dir="/root/route64-wg-backups/$(date +%Y%m%d-%H%M%S)-$"
+mkdir -m 700 "$backup_dir"
+cp -a /etc/wireguard/. "$backup_dir/" 2>/dev/null || true
+BACKUP_READY=1
 make_key(){ local supplied="$1" target="$2"; if [[ -n "$supplied" ]]; then printf '%s\n' "$supplied" > "$target"; else umask 077; wg genkey > "$target"; fi; chmod 600 "$target"; }
+WG0_CREATED=1
 make_key "${ROUTE64_PRIVATE_KEY:-}" /etc/wireguard/wg0.key; echo "Route64 client public key (register in the Route64 manager if this is a newly generated key):"; wg pubkey < /etc/wireguard/wg0.key; p0="$(cat /etc/wireguard/wg0.key)"
 cat > /etc/wireguard/wg0.conf <<EOF
 [Interface]
@@ -122,9 +153,15 @@ EOF
  chmod 600 /etc/wireguard/wg1.conf; unset p1 WG1_PRIVATE_KEY
  wg-quick strip wg1 >/dev/null || { echo "Generated wg1.conf failed WireGuard validation." >&2; exit 1; }
 fi
-sysctl -w net.ipv6.conf.all.forwarding=1; printf 'net.ipv6.conf.all.forwarding=1\n' > /etc/sysctl.d/90-route64-wireguard.conf
+sysctl -w net.ipv6.conf.all.forwarding=1
+printf 'net.ipv6.conf.all.forwarding=1\n' > /etc/sysctl.d/90-route64-wireguard.conf
+SYSCTL_CREATED=1
+WG0_STARTED=1
 systemctl enable --now wg-quick@wg0
-if [[ "${ENABLE_DOWNSTREAM_WG1:-no}" == yes ]]; then systemctl enable --now wg-quick@wg1; fi
+if [[ "${ENABLE_DOWNSTREAM_WG1:-no}" == yes ]]; then
+  WG1_STARTED=1
+  systemctl enable --now wg-quick@wg1
+fi
 echo "Installed. Backup: $backup_dir"
 echo
 echo "===== Built-in post-install checks ====="
