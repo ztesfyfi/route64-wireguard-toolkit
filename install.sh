@@ -39,7 +39,7 @@ draw_header() {
 ╚══════════════════════════════════════════════════════════════════════╝
 EOF
 }
-# 读取单个按键，并过滤方向键、滚轮等终端控制序列。
+# 读取单个按键。ESC/CSI/SS3/X10 等控制序列整段丢弃，避免滚轮残留字符进入菜单。
 read_ui_key() {
   local key next key_code
   REPLY=""
@@ -47,16 +47,17 @@ read_ui_key() {
   if [[ -z "$key" ]]; then REPLY="ENTER"; return 0; fi
   key_code=$(printf '%d' "'$key")
   if [[ "$key_code" == 27 ]]; then
-    IFS= read -rsn1 -t 0.04 next || return 0
+    # 终端可能分批发送转义序列，不能使用过短的 40ms 超时。
+    IFS= read -rsn1 -t 0.25 next || return 0
     case "$next" in
       '['|'O')
-        while IFS= read -rsn1 -t 0.04 next; do
+        while IFS= read -rsn1 -t 0.25 next; do
           [[ "$next" =~ [@-~] ]] && break
         done
         ;;
-      'M') IFS= read -rsn3 -t 0.04 next || true ;;
+      'M') IFS= read -rsn3 -t 0.25 next || true ;;
       *)
-        while IFS= read -rsn1 -t 0.02 next; do
+        while IFS= read -rsn1 -t 0.10 next; do
           [[ "$next" =~ [@-~] ]] && break
         done
         ;;
@@ -70,10 +71,10 @@ read_ui_key() {
 pause() {
   echo
   if (( UI_ACTIVE )); then
-    printf "按任意键返回主菜单……"
+    printf "按回车或空格返回主菜单（鼠标滚轮仅滚动，不触发返回）……"
     while :; do
       read_ui_key || break
-      [[ -n "$REPLY" ]] && break
+      [[ "$REPLY" == "ENTER" || "$REPLY" == " " ]] && break
     done
     # 清空子页面及终端滚动缓冲区，返回首页时不残留子页面记录。
     printf '\033[0m\033[3J\033[2J\033[H'
@@ -372,10 +373,16 @@ main_menu() {
 EOF
     if (( UI_ACTIVE )); then
       printf "请选择功能 [0-3]："
-      read_ui_key || break
-      choice="$REPLY"
-      printf "%s\n" "$choice"
-      [[ "$choice" =~ ^[0-3]$ ]] || { echo "请按 0、1、2 或 3 选择。"; sleep 1; continue; }
+      choice=""
+      while :; do
+        read_ui_key || break 2
+        if [[ "$REPLY" =~ ^[0-3]$ ]]; then
+          choice="$REPLY"
+          printf "%s\n" "$choice"
+          break
+        fi
+        # 忽略滚轮、方向键及其他非菜单字符，不把控制序列尾部当作输入。
+      done
     else
       read -r -p "请选择功能 [0-3]：" choice || break
     fi
