@@ -55,7 +55,7 @@ if [[ "${ENABLE_DOWNSTREAM_WG1:-no}" == yes ]]; then
  cidr6 "$WG1_SERVER_ADDRESS" || { echo 'WG1_SERVER_ADDRESS must be IPv6 CIDR' >&2; exit 1; }
  cidr6 "$WG1_CLIENT_ADDRESS" || { echo 'WG1_CLIENT_ADDRESS must be IPv6 CIDR' >&2; exit 1; }
 fi
-command -v apt-get >/dev/null; apt-get update; DEBIAN_FRONTEND=noninteractive apt-get install -y wireguard-tools python3
+command -v apt-get >/dev/null; apt-get update; DEBIAN_FRONTEND=noninteractive apt-get install -y wireguard-tools python3 iproute2 iputils-ping
 if [[ "${ENABLE_DOWNSTREAM_WG1:-no}" == yes ]]; then
  WG1_LISTEN_PORT="$(python3 - "${WG1_LISTEN_PORT:-}" <<'PY'
 import secrets, socket, sys
@@ -122,4 +122,31 @@ fi
 sysctl -w net.ipv6.conf.all.forwarding=1; printf 'net.ipv6.conf.all.forwarding=1\n' > /etc/sysctl.d/90-route64-wireguard.conf
 systemctl enable --now wg-quick@wg0
 if [[ "${ENABLE_DOWNSTREAM_WG1:-no}" == yes ]]; then systemctl enable --now wg-quick@wg1; fi
-echo "Installed. Backup: $backup_dir"; echo 'Firewall unchanged; configure UDP ingress and IPv6 forwarding manually.'; echo 'No IPv4 routes, NAT66, or unrelated WireGuard interfaces were modified.'
+echo "Installed. Backup: $backup_dir"
+echo
+echo "===== Built-in post-install checks ====="
+printf 'wg0 service: '; systemctl is-active wg-quick@wg0 || true
+printf 'IPv6 forwarding: '; sysctl -n net.ipv6.conf.all.forwarding 2>/dev/null || true
+printf 'wg0 peer handshake timestamp: '
+handshake="$(wg show wg0 latest-handshakes 2>/dev/null | awk 'NR==1 {print $2}')"
+if [[ -n "$handshake" && "$handshake" != 0 ]]; then
+  date -d "@$handshake" '+%F %T %Z' 2>/dev/null || printf '%s\n' "$handshake"
+else
+  echo "NONE"
+  echo "WARNING: no successful handshake detected yet."
+  echo "Check Route64 client public-key registration, endpoint, UDP egress and peer keys."
+fi
+printf 'IPv6 probe through wg0: '
+if ping -6 -n -I wg0 -c 2 -W 3 2606:4700:4700::1111 >/dev/null 2>&1; then
+  echo "PASS"
+else
+  echo "FAILED"
+  echo "Check handshake first, then AllowedIPs, Route64 routing, MTU and ICMPv6 filtering."
+fi
+if [[ "${ENABLE_DOWNSTREAM_WG1:-no}" == yes ]]; then
+  printf 'wg1 service: '; systemctl is-active wg-quick@wg1 || true
+  printf 'wg1 listen port: '; wg show wg1 listen-port 2>/dev/null || true
+  echo "Reminder: allow this UDP port in both the cloud security group and VPS firewall."
+fi
+echo
+echo "Firewall policy was not changed. No IPv4 routes, NAT66, or unrelated WireGuard interfaces were modified."
