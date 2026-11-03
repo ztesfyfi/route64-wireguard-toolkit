@@ -16,7 +16,7 @@ ROUTED_PREFIX=""              # Current routed prefix from Route64 manager, e.g.
 # Optional downstream WireGuard server
 ENABLE_DOWNSTREAM_WG1="no"
 WG1_PRIVATE_KEY=""            # Empty = generate a new key
-WG1_LISTEN_PORT="51821"
+WG1_LISTEN_PORT=""            # Empty = choose an unused high UDP port (49152-65535) at install time
 WG1_SERVER_ADDRESS=""         # Empty = generate a fresh random ULA /64 and server address
 WG1_CLIENT_PUBLIC_KEY=""      # Current downstream client's public key; blank skips peer block
 WG1_CLIENT_ADDRESS=""         # Empty = auto-generate a client address in the generated ULA /64
