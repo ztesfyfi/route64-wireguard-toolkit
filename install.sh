@@ -14,12 +14,12 @@ cidr6 "$ROUTE64_ADDRESS" || { echo 'ROUTE64_ADDRESS must be IPv6 CIDR' >&2; exit
 cidr6 "$ROUTED_PREFIX" || { echo 'ROUTED_PREFIX must be IPv6 CIDR' >&2; exit 1; }
 [[ ! -e /etc/wireguard/wg0.conf ]] || { echo 'Refusing to overwrite existing wg0.conf' >&2; exit 1; }
 if [[ "${ENABLE_DOWNSTREAM_WG1:-no}" == yes ]]; then
- [[ ! -e /etc/wireguard/wg1.conf ]] || { echo 'Refusing to overwrite existing wg1.conf' >&2; exit 1; }; need WG1_LISTEN_PORT; need WG1_SERVER_ADDRESS
+ [[ ! -e /etc/wireguard/wg1.conf ]] || { echo 'Refusing to overwrite existing wg1.conf' >&2; exit 1; }; need WG1_LISTEN_PORT
  [[ "$WG1_LISTEN_PORT" =~ ^[0-9]{1,5}$ ]] && ((WG1_LISTEN_PORT>0 && WG1_LISTEN_PORT<65536)) || { echo 'Invalid WG1_LISTEN_PORT' >&2; exit 1; }
  if [[ -z "${WG1_SERVER_ADDRESS:-}" && -z "${WG1_CLIENT_ADDRESS:-}" ]]; then
   command -v od >/dev/null || { echo 'od is required to generate a fresh ULA prefix' >&2; exit 1; }
   ula_id="$(od -An -N5 -tx1 /dev/urandom | tr -d ' \n')"
-  ula_prefix="fd${ula_id}:1"
+  ula_prefix="fd${ula_id:0:2}:${ula_id:2:4}:${ula_id:6:4}:1"
   WG1_SERVER_ADDRESS="${ula_prefix}::1/64"
   WG1_CLIENT_ADDRESS="${ula_prefix}::2/128"
   echo "Generated a fresh downstream ULA prefix: ${ula_prefix}::/64"
