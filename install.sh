@@ -39,7 +39,7 @@ draw_header() {
 ╚══════════════════════════════════════════════════════════════════════╝
 EOF
 }
-# 读取一个按键，并吞掉方向键、滚轮等终端控制序列，避免它们泄漏到菜单输入。
+# 读取单个按键，并过滤方向键、滚轮等终端控制序列。
 read_ui_key() {
   local key next
   REPLY=""
@@ -338,7 +338,7 @@ EOF
       printf "请选择功能 [0-3]："
       read_ui_key || break
       choice="$REPLY"
-      printf '%s\\n' "$choice"
+      printf "%s\\n" "$choice"
       [[ "$choice" =~ ^[0-3]$ ]] || { echo "请按 0、1、2 或 3 选择。"; sleep 1; continue; }
     else
       read -r -p "请选择功能 [0-3]：" choice || break
@@ -371,22 +371,16 @@ if [[ "${1:-}" == "--help" || "${1:-}" == "-h" ]]; then
 fi
 if (($#)); then echo "未知参数：$*"; exit 2; fi
 main_menu
-\\e' ]]; then
-    # ESC 后没有后续字节时，视为单独按下 ESC。
+\\x1b' ]]; then
     IFS= read -rsn1 -t 0.04 next || return 0
     case "$next" in
       '['|'O')
-        # CSI / SS3：一直读取到控制序列的结束字节。
         while IFS= read -rsn1 -t 0.04 next; do
           [[ "$next" =~ [@-~] ]] && break
         done
         ;;
-      'M')
-        # 旧式 X10 鼠标报告：后面还有三个字节。
-        IFS= read -rsn3 -t 0.04 next || true
-        ;;
+      'M') IFS= read -rsn3 -t 0.04 next || true ;;
       *)
-        # 其它 ESC 序列尽量吞掉，不把残余字符交给菜单。
         while IFS= read -rsn1 -t 0.02 next; do
           [[ "$next" =~ [@-~] ]] && break
         done
@@ -406,7 +400,7 @@ pause() {
       read_ui_key || break
       [[ -n "$REPLY" ]] && break
     done
-    # 清除子页面内容及终端滚动缓冲区，返回首页时不留下子页面记录。
+    # 清空子页面及终端滚动缓冲区，返回首页时不残留子页面记录。
     printf '\\033[0m\\033[3J\\033[2J\\033[H'
   else
     read -r -p "按回车键返回主菜单..." _ || true
