@@ -25,6 +25,19 @@
    ```bash
    sudo bash install.sh --config config/config.env
    ```
+**VPS 一键下载并运行安装脚本（前提：已生成 `config/config.env`）**：
+
+在仓库目录中执行：
+
+```bash
+curl -fsSLO https://raw.githubusercontent.com/ztesfyfi/route64-wireguard-toolkit/main/install.sh
+sudo bash install.sh --config config/config.env
+```
+
+也可以先查看脚本：[install.sh](https://github.com/ztesfyfi/route64-wireguard-toolkit/blob/main/install.sh)。
+
+> 注意：安装脚本必须读取你根据当前 Route64 隧道生成的 `config/config.env`，因此不能只运行一个不带配置的远程命令。首次部署前请检查配置和脚本；不要把包含私钥的配置文件公开。
+
 5. 部署后运行诊断脚本：
    ```bash
    sudo bash diagnose.sh
