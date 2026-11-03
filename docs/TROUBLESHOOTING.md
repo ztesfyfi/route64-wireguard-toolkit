@@ -40,17 +40,22 @@ Never share private keys, preshared keys, tokens, or unredacted config files. Th
 Route64 分配的传输地址和路由前缀不能从 VPS 本机可靠推算。请以当前 Route64 管理面板为准。
 
 
-## 使用配置导入助手
+## 交互式安装无法继续
 
-建议从当前 Route64 管理面板重新下载 WireGuard 配置，再执行：
+当前推荐直接运行交互式安装器：
 
 ```bash
-bash configure.sh /path/to/current-route64.conf
+bash <(curl -fsSL https://raw.githubusercontent.com/ztesfyfi/route64-wireguard-toolkit/main/install.sh)
 ```
 
-助手会从该配置读取隧道地址、对端公钥、Endpoint、AllowedIPs 和 MTU，并要求你输入当前隧道分配的路由前缀。它不会覆盖已有的 `config/config.env`。生成后请检查配置文件，尤其确认路由前缀来自当前隧道。
+- 粘贴 Route64 导出的完整配置后，必须另起一行输入 `END` 结束；不要把 `END` 粘在配置行尾。
+- 如果下载 `configure.sh` 失败，先检查 VPS 是否能解析并访问 `raw.githubusercontent.com`，再重试。
+- 如果提示缺少 Routed Prefix，请从 Route64 当前隧道页面确认并输入；不能使用旧 VPS 的前缀，也不能把隧道传输地址当作 Routed Prefix。
+- 如果提示 `wg0.conf already exists` 或 `wg1.conf already exists`，安装器为了避免破坏现有隧道会停止。先运行诊断脚本并自行确认旧配置是否可以迁移；不要直接删除配置。
+- 如果新生成了 Route64 客户端密钥，安装器会输出公钥。先把公钥登记到 Route64 面板，再检查握手。
+- 安装器完成配置和启动后，会尝试通过 wg0 做 IPv6 探测。探测失败时它会给出排查方向，但不会自动修改防火墙或云安全组。
 
-如果导出的配置没有 PrivateKey，助手会保留空值；此时需要先生成本机密钥，并将对应公钥登记到 Route64，不能直接期待隧道握手成功。
+仍可在仓库目录中单独运行 `configure.sh` 生成配置文件，再通过 `install.sh --config PATH` 做非交互式安装。配置文件会作为 Shell 变量文件加载，只能使用可信文件。
 
 
 ## 下游 WireGuard 端口冲突或无法连接
