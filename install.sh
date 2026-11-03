@@ -102,6 +102,8 @@ AllowedIPs = ${ROUTE64_ALLOWED_IPS:-::/1,8000::/1}
 PersistentKeepalive = 25
 EOF
 chmod 600 /etc/wireguard/wg0.conf; unset p0 ROUTE64_PRIVATE_KEY
+# Parse generated configs before changing sysctl or starting services.
+wg-quick strip wg0 >/dev/null || { echo "Generated wg0.conf failed WireGuard validation." >&2; exit 1; }
 if [[ "${ENABLE_DOWNSTREAM_WG1:-no}" == yes ]]; then
  make_key "${WG1_PRIVATE_KEY:-}" /etc/wireguard/wg1.key; p1="$(cat /etc/wireguard/wg1.key)"
  cat > /etc/wireguard/wg1.conf <<EOF
@@ -118,6 +120,7 @@ EOF
   printf '\n' >> /etc/wireguard/wg1.conf
  fi
  chmod 600 /etc/wireguard/wg1.conf; unset p1 WG1_PRIVATE_KEY
+ wg-quick strip wg1 >/dev/null || { echo "Generated wg1.conf failed WireGuard validation." >&2; exit 1; }
 fi
 sysctl -w net.ipv6.conf.all.forwarding=1; printf 'net.ipv6.conf.all.forwarding=1\n' > /etc/sysctl.d/90-route64-wireguard.conf
 systemctl enable --now wg-quick@wg0
