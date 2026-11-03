@@ -39,7 +39,7 @@ bash <(curl -fsSL https://raw.githubusercontent.com/ztesfyfi/route64-wireguard-t
 
 1. 粘贴 Route64 面板导出的完整 WireGuard 配置（以单独一行 `END` 结束）。
 2. 输入当前这条隧道在 Route64 面板分配的 Routed Prefix。
-3. 选择是否创建下游 WireGuard 服务端 `wg1)，并可输入客户端公钥。
+3. 选择是否创建下游 WireGuard 服务端 `wg1`，并可输入客户端公钥。
 4. 自动检查配置、安装缺少的 WireGuard 工具、生成必要密钥和 ULA 地址。
 5. 备份现有 WireGuard 目录内容，创建配置并启动服务。
 6. 输出服务状态、下游 UDP 端口和诊断提示。
