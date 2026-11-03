@@ -1,0 +1,18 @@
+# Copy to config/config.env, edit, then chmod 600 config/config.env
+# Values are placeholders; use exact values from your Route64 panel.
+ROUTE64_PRIVATE_KEY=""       # Empty = generate /etc/wireguard/wg0.key
+ROUTE64_PUBLIC_KEY=""        # Route64 peer public key
+ROUTE64_ENDPOINT=""          # Endpoint host:port
+ROUTE64_ADDRESS=""           # VPS wg0 address, IPv6 CIDR
+ROUTE64_ALLOWED_IPS="::/1,8000::/1"
+ROUTE64_MTU="1420"
+ROUTED_PREFIX=""              # Routed IPv6 prefix, e.g. assigned /56
+
+# Optional downstream WireGuard server
+ENABLE_DOWNSTREAM_WG1="no"
+WG1_PRIVATE_KEY=""            # Empty = generate /etc/wireguard/wg1.key
+WG1_LISTEN_PORT="51821"
+WG1_SERVER_ADDRESS="fd42:64:64::1/64"
+WG1_CLIENT_PUBLIC_KEY=""     # Blank skips peer block
+WG1_CLIENT_ADDRESS="fd42:64:64::2/128"
+WG1_CLIENT_ALLOWED_PREFIX="" # Optional routed LAN prefix
