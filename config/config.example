@@ -1,18 +1,23 @@
 # Copy to config/config.env, edit, then chmod 600 config/config.env
-# Values are placeholders; use exact values from your Route64 panel.
-ROUTE64_PRIVATE_KEY=""       # Empty = generate /etc/wireguard/wg0.key
-ROUTE64_PUBLIC_KEY=""        # Route64 peer public key
-ROUTE64_ENDPOINT=""          # Endpoint host:port
-ROUTE64_ADDRESS=""           # VPS wg0 address, IPv6 CIDR
+# IMPORTANT:
+# - Do not reuse addresses from old VPS/tunnel/client configurations.
+# - Obtain ROUTE64_ADDRESS, ROUTE64_PUBLIC_KEY, ROUTE64_ENDPOINT and
+#   ROUTED_PREFIX from the CURRENT Route64 manager-generated configuration.
+# - Leave downstream ULA addresses blank to generate a fresh random prefix at install time.
+
+ROUTE64_PRIVATE_KEY=""       # Private key from the current Route64 config, or empty to generate one
+ROUTE64_PUBLIC_KEY=""        # Current Route64 peer public key
+ROUTE64_ENDPOINT=""          # Current Route64 endpoint host:port (prefer hostname if provided)
+ROUTE64_ADDRESS=""           # Current VPS-side transfer address/CIDR from Route64
 ROUTE64_ALLOWED_IPS="::/1,8000::/1"
 ROUTE64_MTU="1420"
-ROUTED_PREFIX=""              # Routed IPv6 prefix, e.g. assigned /56
+ROUTED_PREFIX=""              # Current routed prefix from Route64 manager, e.g. assigned /56
 
 # Optional downstream WireGuard server
 ENABLE_DOWNSTREAM_WG1="no"
-WG1_PRIVATE_KEY=""            # Empty = generate /etc/wireguard/wg1.key
+WG1_PRIVATE_KEY=""            # Empty = generate a new key
 WG1_LISTEN_PORT="51821"
-WG1_SERVER_ADDRESS="fd42:64:64::1/64"
-WG1_CLIENT_PUBLIC_KEY=""     # Blank skips peer block
-WG1_CLIENT_ADDRESS="fd42:64:64::2/128"
-WG1_CLIENT_ALLOWED_PREFIX="" # Optional routed LAN prefix
+WG1_SERVER_ADDRESS=""         # Empty = generate a fresh random ULA /64 and server address
+WG1_CLIENT_PUBLIC_KEY=""      # Current downstream client's public key; blank skips peer block
+WG1_CLIENT_ADDRESS=""         # Empty = auto-generate a client address in the generated ULA /64
+# The current ROUTED_PREFIX is automatically added to this peer's AllowedIPs when wg1 is enabled.
