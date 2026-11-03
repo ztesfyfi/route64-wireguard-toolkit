@@ -1,47 +1,162 @@
 # Route64 WireGuard 工具包
 
-用于在 VPS 端部署和诊断 Route64 IPv6 隧道，以及可选的下游 WireGuard 对等连接。
+用于在 VPS 端部署和诊断 Route64 IPv6 隧道，以及可选的下游 WireGuard 对等连接和双上游隧道故障切换。
 
 **项目范围：仅支持 Ubuntu / Debian VPS。** 本项目不负责配置 OpenWrt、iStoreOS、Open-Box、局域网路由器通告（RA），也不会配置客户端设备。
 
+## 功能
+
+- 部署 Route64 主隧道 `wg0`。
+- 可选部署下游 WireGuard 服务端 `wg1`。
+- 下游 UDP 端口可自动选择未占用的高位端口（49152–65535）。
+- 双 Route64 上游隧道健康检测和主备切换控制器（主隧道 `wg0`，备用隧道 `wg2`）。
+- 只读网络诊断脚本。
+
+> 双隧道控制器是独立模块。它不会自动向 Route64 申请第二条隧道，也不会自动生成第二条隧道的 Route64 配置；两条隧道必须先分别在 Route64 面板创建并配置到 VPS。
+
 ## 文件说明
 
-- `configure.sh`：读取当前 Route64 面板导出的 WireGuard 配置，辅助生成配置文件；路由前缀由你从当前面板确认输入。
+- `configure.sh`：导入当前 Route64 面板导出的 WireGuard 配置，辅助生成单隧道安装配置。
 - `install.sh`：部署 Route64 的 `wg0`，并可选择部署下游 WireGuard 接口 `wg1`。
 - `diagnose.sh`：只读诊断 WireGuard、IPv6 路由与规则、IPv6 转发、防火墙和相关服务状态。
-- `config/config.example`：配置文件模板；下游 ULA 地址默认留空，由安装时随机生成。
-- `docs/TROUBLESHOOTING.md`：常见故障的检查方法。
+- `config/config.example`：单隧道安装配置模板。
+- `failover/route64-failover.sh`：双上游健康检测和切换守护脚本。
+- `failover/route64-failover.service`：systemd 服务单元。
+- `failover/route64-failover.env.example`：主备接口和检测参数模板。
+- `docs/TROUBLESHOOTING.md`：常见故障检查方法。
 
-## 快速开始
+## 单隧道部署方法
 
-1. 从**当前** Route64 管理面板下载该隧道的 WireGuard `.conf` 文件。
-2. 用辅助脚本导入当前配置，并按提示输入该隧道当前分配的路由前缀：
+以下示例适用于 Ubuntu / Debian VPS。建议先备份现有 WireGuard 配置，并确认 VPS 没有需要保留的同名接口。
+
+1. 安装基础工具并下载项目：
+
    ```bash
-   bash configure.sh /path/to/current-route64.conf
+   sudo apt-get update
+   sudo apt-get install -y git wireguard-tools
+   git clone https://github.com/ztesfyfi/route64-wireguard-toolkit.git
+   cd route64-wireguard-toolkit
    ```
-   脚本会生成权限为 `600` 的 `config/config.env`，不会覆盖已有文件。
-3. 检查生成的配置，确认地址和前缀来自当前隧道。若不使用导入助手，也可以复制 `config/config.example` 后手动填写。
-4. 检查安装脚本内容，确认理解其操作后再执行：
+
+2. 从当前 Route64 管理面板下载该隧道的 WireGuard `.conf` 文件，然后导入：
+
+   ```bash
+   bash configure.sh /你的文件路径/route64.conf
+   ```
+
+   按提示输入**当前这条隧道**分配的路由前缀。脚本会生成权限为 `600` 的 `config/config.env`，不会覆盖已有文件。
+
+3. 检查 `config/config.env`，确认地址、Endpoint、公钥和路由前缀都来自当前隧道。需要下游客户端时，再按需设置 `ENABLE_DOWNSTREAM_WG1="yes"` 并填写客户端公钥；不启用则保持 `no`。
+
+4. 执行安装：
+
    ```bash
    sudo bash install.sh --config config/config.env
    ```
-**VPS 一键下载并运行安装脚本（前提：已生成 `config/config.env`）**：
 
-在仓库目录中执行：
+5. 部署后检查：
+
+   ```bash
+   sudo bash diagnose.sh
+   sudo wg show
+   ip -6 route
+   ```
+
+**说明：** 当前安装脚本要求已有配置文件。下面这条不带参数的远程命令目前不支持，不能当作一键交互安装命令：
+
+```bash
+bash <(curl -fsSL https://raw.githubusercontent.com/ztesfyfi/route64-wireguard-toolkit/main/install.sh)
+```
+
+也可以在仓库目录中下载并执行安装脚本：
 
 ```bash
 curl -fsSLO https://raw.githubusercontent.com/ztesfyfi/route64-wireguard-toolkit/main/install.sh
 sudo bash install.sh --config config/config.env
 ```
 
-也可以先查看脚本：[install.sh](https://github.com/ztesfyfi/route64-wireguard-toolkit/blob/main/install.sh)。
+首次部署前请检查脚本和配置；不要把包含私钥的配置文件公开。
 
-> 注意：安装脚本必须读取你根据当前 Route64 隧道生成的 `config/config.env`，因此不能只运行一个不带配置的远程命令。首次部署前请检查配置和脚本；不要把包含私钥的配置文件公开。
+## 双 Route64 隧道自动故障切换
 
-5. 部署后运行诊断脚本：
-   ```bash
-   sudo bash diagnose.sh
-   ```
+### 工作原理与前置条件
+
+控制器默认把 `wg0` 作为主隧道、`wg2` 作为备用隧道。每轮分别通过指定接口向 IPv6 探测目标发送 ICMPv6，只有实际探测成功才视为健康；连续失败达到阈值后切换，主隧道连续恢复成功达到阈值后自动切回。
+
+启用前必须满足：
+
+1. 在同一个 Route64 账号下创建两条独立隧道（是否允许及数量以 Route64 账号/面板限制为准），分别下载两份**当前** WireGuard 配置。
+2. 两条隧道使用各自的私钥、公钥、传输地址和 Endpoint，不能把 A 隧道的密钥或地址复制给 B 隧道。
+3. 在 VPS 上分别配置为 `wg0` 和 `wg2`，并在两份配置的 `[Interface]` 段加入：
+   `Table = off`
+   这会禁止 `wg-quick` 为两条上游隧道各自安装冲突的默认路由；默认 IPv6 路由由本控制器统一管理。
+4. 两条接口的 `[Peer]` 均需包含可供探测目标使用的 IPv6 路由（常见为 `AllowedIPs = ::/1, 8000::/1`，以 Route64 当前配置为准）。
+5. 两条接口都应能独立完成 WireGuard 握手，并分别通过接口绑定的 IPv6 探测。VPS 防火墙、上游网络和 Route64 侧必须允许相应流量。
+
+**重要：** 当前 `install.sh` 只负责创建 `wg0` 和可选 `wg1`，不会自动创建第二条 Route64 隧道 `wg2`。请先按 Route64 提供的第二份配置单独创建 `/etc/wireguard/wg2.conf`，并确认 `wg-quick@wg2` 可以正常启动。不要直接覆盖现有 `wg0.conf`；修改现有配置前请备份，并确保有 VPS 控制台/救援访问方式。
+
+### 配置与启动控制器
+
+在仓库根目录执行：
+
+```bash
+sudo install -d -m 755 /usr/local/sbin
+sudo install -m 755 failover/route64-failover.sh /usr/local/sbin/route64-failover
+sudo install -m 644 failover/route64-failover.service /etc/systemd/system/route64-failover.service
+sudo install -m 600 failover/route64-failover.env.example /etc/default/route64-failover
+sudo nano /etc/default/route64-failover
+```
+
+默认参数如下，可按需修改：
+
+| 参数 | 默认值 | 说明 |
+|---|---:|---|
+| `PRIMARY_IFACE` | `wg0` | 主隧道接口 |
+| `BACKUP_IFACE` | `wg2` | 备用隧道接口 |
+| `PROBE_TARGET` | `2606:4700:4700::1111` | IPv6 连通性探测目标 |
+| `CHECK_INTERVAL` | `10` | 每轮检测间隔（秒） |
+| `FAIL_THRESHOLD` | `3` | 连续失败多少轮后切换 |
+| `RECOVER_THRESHOLD` | `5` | 主隧道连续成功多少轮后切回 |
+| `PING_COUNT` | `2` | 每轮每条隧道发送的探测包数 |
+| `PING_TIMEOUT` | `3` | 单个 ping 等待超时（秒） |
+
+启动两条上游隧道并启用控制器：
+
+```bash
+sudo systemctl enable --now wg-quick@wg0
+sudo systemctl enable --now wg-quick@wg2
+sudo systemctl daemon-reload
+sudo systemctl enable --now route64-failover
+```
+
+查看运行状态和切换日志：
+
+```bash
+sudo systemctl status route64-failover
+sudo journalctl -u route64-failover -f
+cat /run/route64-failover.active
+ip -6 route
+```
+
+停止自动切换：
+
+```bash
+sudo systemctl disable --now route64-failover
+```
+
+控制器通过 `ip -6 route` 管理主路由表中的 `::/1` 和 `8000::/1` 两条 IPv6 路由。请勿同时运行其他会管理这两条路由的策略路由/多出口程序，否则可能互相覆盖。
+
+### 下游前缀与回程路由限制
+
+本控制器切换的是 VPS 的 IPv6 出口路由。它**不会**自动把同一个 Route64 Routed Prefix 从主隧道迁移到备用隧道，也不会修改 Route64 面板中的路由归属。
+
+如果下游 `wg1` 使用 Route64 分配的公网 IPv6 前缀，要实现主隧道故障后下游设备仍能被公网访问，必须先确认 Route64 支持该前缀同时/重新路由到备用隧道，并按 Route64 的要求配置两条隧道的前缀和回程路由。否则可能出现 VPS 主动访问 IPv6 已切换成功，但外部访问下游前缀仍不可用的情况。
+
+两条隧道即使连接同一台 VPS，也不能消除 VPS 宕机、VPS IPv4 出口故障或同一上游网络故障造成的共同故障。
+
+### 检测时间说明
+
+默认每 10 秒检测一次，连续失败 3 轮后切换；主隧道连续成功 5 轮后切回。实际切换时间还受每轮 ping 超时、系统调度和 Route64 恢复速度影响，不保证固定在 30 秒。探测目标必须允许 ICMPv6；如目标屏蔽 ping，请更换为可从两条隧道稳定探测的 IPv6 地址。
 
 ## 安装脚本行为与注意事项
 
@@ -50,44 +165,17 @@ sudo bash install.sh --config config/config.env
 - `/etc/wireguard/wg0.conf`
 - `/etc/wireguard/wg1.conf`（仅在启用下游 wg1 时检查）
 
-脚本会将已有的 WireGuard 文件备份到：
+脚本会将已有 WireGuard 文件备份到 `/root/route64-wg-backups/`。如果配置中没有 Route64 客户端私钥，安装脚本会生成新密钥，并打印对应的**公钥**供你登记到 Route64 管理面板；私钥不会打印。新公钥尚未登记前，隧道无法正常握手。
 
-```text
-/root/route64-wg-backups/
-```
+脚本会启用 IPv6 转发，但不会清空或重写现有防火墙规则、修改 IPv4 路由、配置 NAT66 或修改其他无关的 WireGuard 接口。防火墙规则不会由脚本自动配置，请自行确认放行所需 UDP 端口并允许必要的 IPv6 转发流量。
 
-如果配置中没有 Route64 客户端私钥，安装脚本会生成新密钥，并打印对应的**公钥**供你登记到 Route64 管理面板；私钥不会打印。新公钥尚未登记前，隧道无法正常握手。\n\n脚本会启用 IPv6 转发，但**不会**执行以下操作：
+## IP 地址与密钥安全
 
-- 清空或重写现有防火墙规则；
-- 修改 IPv4 路由；
-- 配置 NAT66；
-- 修改其他无关的 WireGuard 接口。
-
-防火墙规则不会由脚本自动配置。请根据 VPS 当前使用的 nftables / iptables 规则，自行确认已放行所需的 UDP 监听端口，并允许必要的 IPv6 转发流量。
-
-## IP 地址获取与部署前确认
-
-本工具不沿用历史测试环境中的 VPS、隧道或客户端 IP。配置模板中的 Route64 地址和前缀均为空，必须以**当前 Route64 管理面板为准**，不要复制旧机器或旧隧道的配置。
-
-- `ROUTE64_ADDRESS`、`ROUTE64_PUBLIC_KEY`、`ROUTE64_ENDPOINT`：从当前 Route64 隧道生成的 WireGuard 配置中取得。
-- `ROUTED_PREFIX`：从当前 Route64 管理面板取得分配给该隧道的路由前缀。
-- 可选下游 `wg1` 的服务器和客户端 ULA 地址：配置模板默认留空。启用 wg1 时，安装脚本会生成一个新的随机 ULA 前缀和对应地址，不再使用固定的示例地址。若手动填写，则必须同时填写服务器地址和客户端地址。
-- VPS 当前公网出口地址、网卡和路由属于运行环境信息，不能拿旧记录代替。安装前应在目标 VPS 上重新检查。
-
-Route64 的隧道地址、对端公钥和 Endpoint 可从当前面板导出的 WireGuard 配置中导入；路由前缀需要从当前隧道页面确认并输入。Route64 的这些分配值不能仅凭 VPS 本机信息可靠推算，工具不会猜测或套用旧值。
-
-## 配置说明
-
-- `ROUTE64_ALLOWED_IPS` 默认值为 `::/1,8000::/1`。使用前请对照 Route64 控制面板确认是否适合你的隧道配置。
-- `ROUTED_PREFIX` 表示由 VPS 路由转发的 IPv6 前缀，不是 WireGuard 隧道接口地址。
-- 可选的 `wg1` 用于连接下游 WireGuard 客户端。监听端口默认自动选择未占用的高位 UDP 端口（49152–65535）；启用并配置客户端公钥后，当前 `ROUTED_PREFIX` 会加入该客户端 Peer 的 `AllowedIPs`。脚本不会替下游客户端安装配置，也不会配置局域网 RA / SLAAC。
-
-## 安全提示
-
-- 不要公开私钥（PrivateKey）、预共享密钥（PresharedKey）或未脱敏的完整配置文件。
-- 诊断脚本为只读脚本，不会主动修改系统配置。
-- 诊断报告仍可能包含公网 IP、主机名、路由和网络结构等信息。分享报告前，请先检查并按需脱敏。
-- 执行安装前，请先检查配置文件和脚本内容，并确认 VPS 上没有需要保留且会与本工具冲突的 WireGuard 配置。
+- 不沿用历史测试环境中的 VPS、隧道或客户端 IP；所有 Route64 地址和前缀都以当前 Route64 面板为准。
+- `ROUTE64_ADDRESS`、`ROUTE64_PUBLIC_KEY`、`ROUTE64_ENDPOINT` 从当前隧道配置取得；`ROUTED_PREFIX` 从当前隧道页面确认。
+- 下游 `wg1` 的 ULA 地址可同时留空，由安装脚本生成随机 ULA 前缀；手动填写时必须成对填写服务器和客户端地址。
+- 不要公开 PrivateKey、PresharedKey、Token 或未脱敏的完整配置文件。
+- 诊断报告可能包含公网 IP、主机名、路由和网络结构，分享前请先检查并脱敏。
 
 ## 免责声明
 
