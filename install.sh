@@ -64,23 +64,37 @@ while (($#)); do case "$1" in --config) [[ $# -ge 2 ]] || { echo 'Missing config
 . /etc/os-release
 [[ "${ID:-}" == ubuntu || "${ID:-}" == debian ]] || { echo "Unsupported OS: ${PRETTY_NAME:-unknown}; Ubuntu/Debian only." >&2; exit 1; }
 if [[ -z "$CONFIG" ]]; then
-  command -v curl >/dev/null 2>&1 || { echo 'curl is required for interactive mode.' >&2; exit 1; }
+  command -v curl >/dev/null 2>&1 || { echo '需要 curl 才能使用在线交互安装。' >&2; exit 1; }
   ui_enter
   ui_page
   TMP_DIR="$(mktemp -d /tmp/route64-wizard.XXXXXX)"
   chmod 700 "$TMP_DIR"
   ROUTE_CONF="$TMP_DIR/route64.conf"
   : > "$ROUTE_CONF"
+  echo
+  echo "【第 1 步 / 4】粘贴 Route64 导出的完整 WireGuard 配置"
+  echo "配置必须包含 [Interface] 和 [Peer] 两个部分。"
+  echo "粘贴结束后，另起一行输入 END 并回车。"
+  echo "提示：配置中的 PrivateKey 属于敏感信息，请勿公开。"
   while IFS= read -r line; do
     [[ "$line" == "END" ]] && break
-    printf '%s\n' "$line" >> "$ROUTE_CONF"
+    printf '%s\\n' "$line" >> "$ROUTE_CONF"
   done
-  [[ -s "$ROUTE_CONF" ]] || { echo "No configuration was pasted." >&2; exit 1; }
+  [[ -s "$ROUTE_CONF" ]] || { echo "错误：没有收到配置内容。" >&2; exit 1; }
+
   echo
-  echo "Downloading the configuration validator..."
-  curl -fsSL "https://raw.githubusercontent.com/ztesfyfi/route64-wireguard-toolkit/main/configure.sh" -o "$TMP_DIR/configure.sh" || {
-    echo "Could not download configure.sh. Check VPS DNS/network access and retry." >&2; exit 1;
-  }
+  echo "【第 2 步 / 4】输入当前隧道的 Routed Prefix"
+  echo "请从 Route64 面板复制分配给这条隧道的路由前缀，例如实际分配的 /56。"
+  echo "注意：这里不是 [Interface] 中的隧道地址。"
+  read -r -p "Routed Prefix： " ROUTED_PREFIX
+  [[ -n "$ROUTED_PREFIX" ]] || { echo "错误：Routed Prefix 不能为空。" >&2; exit 1; }
+
+  echo
+  echo "正在下载配置验证模块……"
+  if ! curl -fsSL "https://raw.githubusercontent.com/ztesfyfi/route64-wireguard-toolkit/main/configure.sh" -o "$TMP_DIR/configure.sh"; then
+    echo "下载失败：无法访问 raw.githubusercontent.com。请检查 VPS DNS 和网络后重试。" >&2
+    exit 1
+  fi
   bash "$TMP_DIR/configure.sh" "$ROUTE_CONF" -o "$TMP_DIR/config.env" --routed-prefix "$ROUTED_PREFIX"
   CONFIG="$TMP_DIR/config.env"
 fi
