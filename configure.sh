@@ -65,19 +65,19 @@ read -r -p "Enter the routed prefix shown for THIS tunnel in the Route64 manager
 mkdir -p "$(dirname "$OUTPUT")"
 {
   printf '# Generated from the current Route64 manager config. Review before installation.\n'
-  printf 'ROUTE64_PRIVATE_KEY="%s"\n' "$private_key"
-  printf 'ROUTE64_PUBLIC_KEY="%s"\n' "$peer_public_key"
-  printf 'ROUTE64_ENDPOINT="%s"\n' "$endpoint"
-  printf 'ROUTE64_ADDRESS="%s"\n' "$route64_address"
-  printf 'ROUTE64_ALLOWED_IPS="%s"\n' "${allowed_ips:-::/1,8000::/1}"
-  printf 'ROUTE64_MTU="%s"\n' "${mtu:-1420}"
-  printf 'ROUTED_PREFIX="%s"\n' "$routed_prefix"
-  printf 'ENABLE_DOWNSTREAM_WG1="no"\n'
-  printf 'WG1_PRIVATE_KEY=""\n'
-  printf 'WG1_LISTEN_PORT=""\n'
-  printf 'WG1_SERVER_ADDRESS=""\n'
-  printf 'WG1_CLIENT_PUBLIC_KEY=""\n'
-  printf 'WG1_CLIENT_ADDRESS=""\n'
+  printf 'ROUTE64_PRIVATE_KEY=%q\n' "$private_key"
+  printf 'ROUTE64_PUBLIC_KEY=%q\n' "$peer_public_key"
+  printf 'ROUTE64_ENDPOINT=%q\n' "$endpoint"
+  printf 'ROUTE64_ADDRESS=%q\n' "$route64_address"
+  printf 'ROUTE64_ALLOWED_IPS=%q\n' "${allowed_ips:-::/1,8000::/1}"
+  printf 'ROUTE64_MTU=%q\n' "${mtu:-1420}"
+  printf 'ROUTED_PREFIX=%q\n' "$routed_prefix"
+  printf 'ENABLE_DOWNSTREAM_WG1=%q\n' "no"
+  printf 'WG1_PRIVATE_KEY=%q\n' ""
+  printf 'WG1_LISTEN_PORT=%q\n' ""
+  printf 'WG1_SERVER_ADDRESS=%q\n' ""
+  printf 'WG1_CLIENT_PUBLIC_KEY=%q\n' ""
+  printf 'WG1_CLIENT_ADDRESS=%q\n' ""
 } > "$OUTPUT"
 chmod 600 "$OUTPUT"
 
