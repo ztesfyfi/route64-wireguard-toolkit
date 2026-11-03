@@ -27,3 +27,14 @@ Enabling IPv6 forwarding can change Router Advertisement acceptance. If the VPS 
 Compare MTU at both ends, test smaller IPv6 payloads, and ensure essential ICMPv6 (especially Packet Too Big) is not blocked.
 
 Never share private keys, preshared keys, tokens, or unredacted config files. The installer refuses to overwrite existing wg0.conf/wg1.conf and intentionally leaves firewall policy to the administrator.
+
+
+## 地址配置错误或疑似使用了旧地址
+
+- 不要从旧 VPS、旧隧道或旧客户端配置复制 `ROUTE64_ADDRESS`、`ROUTED_PREFIX`、`ROUTE64_ENDPOINT`。
+- 重新从当前 Route64 管理面板导出/查看当前隧道的 WireGuard 配置，核对隧道地址、对端公钥和 Endpoint。
+- `ROUTED_PREFIX` 应核对当前隧道分配的前缀，不要把隧道传输网段误填为路由前缀。
+- 启用下游 wg1 时，服务器和客户端 ULA 地址可以同时留空，由安装脚本生成新的随机 ULA 前缀；如果手动填写，必须成对填写。
+- 如果地址来源不确定、格式不合法，或与 VPS 现有路由/接口冲突，先停止安装并确认，不要尝试用猜测的 IP 继续部署。
+
+Route64 分配的传输地址和路由前缀不能从 VPS 本机可靠推算。请以当前 Route64 管理面板为准。
