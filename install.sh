@@ -275,7 +275,6 @@ PersistentKeepalive = $keepalive
 EOF
   if [[ -n "$psk" ]]; then sed -i "/^PublicKey = /a PresharedKey = $psk" /etc/wireguard/wg0.conf; fi
   unset private psk
-  unset private psk
   chmod 600 /etc/wireguard/wg0.conf
   if ! wg-quick strip wg0 >/dev/null; then
     echo "WireGuard 配置校验失败，未启动隧道。"
