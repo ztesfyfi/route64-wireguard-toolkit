@@ -15,7 +15,19 @@ cidr6 "$ROUTED_PREFIX" || { echo 'ROUTED_PREFIX must be IPv6 CIDR' >&2; exit 1; 
 [[ ! -e /etc/wireguard/wg0.conf ]] || { echo 'Refusing to overwrite existing wg0.conf' >&2; exit 1; }
 if [[ "${ENABLE_DOWNSTREAM_WG1:-no}" == yes ]]; then
  [[ ! -e /etc/wireguard/wg1.conf ]] || { echo 'Refusing to overwrite existing wg1.conf' >&2; exit 1; }; need WG1_LISTEN_PORT; need WG1_SERVER_ADDRESS
- [[ "$WG1_LISTEN_PORT" =~ ^[0-9]{1,5}$ ]] && ((WG1_LISTEN_PORT>0 && WG1_LISTEN_PORT<65536)) || { echo 'Invalid WG1_LISTEN_PORT' >&2; exit 1; }; cidr6 "$WG1_SERVER_ADDRESS" || { echo 'WG1_SERVER_ADDRESS must be IPv6 CIDR' >&2; exit 1; }
+ [[ "$WG1_LISTEN_PORT" =~ ^[0-9]{1,5}$ ]] && ((WG1_LISTEN_PORT>0 && WG1_LISTEN_PORT<65536)) || { echo 'Invalid WG1_LISTEN_PORT' >&2; exit 1; }
+ if [[ -z "${WG1_SERVER_ADDRESS:-}" && -z "${WG1_CLIENT_ADDRESS:-}" ]]; then
+  command -v od >/dev/null || { echo 'od is required to generate a fresh ULA prefix' >&2; exit 1; }
+  ula_id="$(od -An -N5 -tx1 /dev/urandom | tr -d ' \n')"
+  ula_prefix="fd${ula_id}:1"
+  WG1_SERVER_ADDRESS="${ula_prefix}::1/64"
+  WG1_CLIENT_ADDRESS="${ula_prefix}::2/128"
+  echo "Generated a fresh downstream ULA prefix: ${ula_prefix}::/64"
+ elif [[ -z "${WG1_SERVER_ADDRESS:-}" || -z "${WG1_CLIENT_ADDRESS:-}" ]]; then
+  echo 'Set both WG1_SERVER_ADDRESS and WG1_CLIENT_ADDRESS, or leave both blank for automatic generation.' >&2; exit 1
+ fi
+ cidr6 "$WG1_SERVER_ADDRESS" || { echo 'WG1_SERVER_ADDRESS must be IPv6 CIDR' >&2; exit 1; }
+ cidr6 "$WG1_CLIENT_ADDRESS" || { echo 'WG1_CLIENT_ADDRESS must be IPv6 CIDR' >&2; exit 1; }
 fi
 command -v apt-get >/dev/null; apt-get update; DEBIAN_FRONTEND=noninteractive apt-get install -y wireguard-tools
 install -d -m 700 /etc/wireguard /root/route64-wg-backups
@@ -44,7 +56,12 @@ Address = $WG1_SERVER_ADDRESS
 ListenPort = $WG1_LISTEN_PORT
 MTU = ${ROUTE64_MTU:-1420}
 EOF
- if [[ -n "${WG1_CLIENT_PUBLIC_KEY:-}" ]]; then need WG1_CLIENT_ADDRESS; printf '\n[Peer]\nPublicKey = %s\nAllowedIPs = %s' "$WG1_CLIENT_PUBLIC_KEY" "$WG1_CLIENT_ADDRESS" >> /etc/wireguard/wg1.conf; [[ -z "${WG1_CLIENT_ALLOWED_PREFIX:-}" ]] || printf ', %s' "$WG1_CLIENT_ALLOWED_PREFIX" >> /etc/wireguard/wg1.conf; printf '\n' >> /etc/wireguard/wg1.conf; fi
+ if [[ -n "${WG1_CLIENT_PUBLIC_KEY:-}" ]]; then
+  printf '\n[Peer]\nPublicKey = %s\nAllowedIPs = %s' "$WG1_CLIENT_PUBLIC_KEY" "$WG1_CLIENT_ADDRESS" >> /etc/wireguard/wg1.conf
+  printf ', %s' "$ROUTED_PREFIX" >> /etc/wireguard/wg1.conf
+  [[ -z "${WG1_CLIENT_ALLOWED_PREFIX:-}" ]] || printf ', %s' "$WG1_CLIENT_ALLOWED_PREFIX" >> /etc/wireguard/wg1.conf
+  printf '\n' >> /etc/wireguard/wg1.conf
+ fi
  chmod 600 /etc/wireguard/wg1.conf; unset p1 WG1_PRIVATE_KEY
 fi
 sysctl -w net.ipv6.conf.all.forwarding=1; printf 'net.ipv6.conf.all.forwarding=1\n' > /etc/sysctl.d/90-route64-wireguard.conf
