@@ -102,7 +102,7 @@ query_ipv6() {
   echo
   echo "VPS 本机全局 IPv6 地址："
   if need_cmd ip; then
-    ip -6 -o addr show scope global 2>/dev/null | awk '{sub(/\\/.*/, "", $4); printf "  %s  (%s)\\n", $4, $2}' || true
+    ip -6 -o addr show scope global 2>/dev/null | awk '{split($4,a,"/"); printf "  %s  (%s)\\n", a[1], $2}' || true
   else
     echo "  ip 命令不可用"
   fi
