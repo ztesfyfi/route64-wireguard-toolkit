@@ -74,7 +74,7 @@ mkdir -p "$(dirname "$OUTPUT")"
   printf 'ROUTED_PREFIX="%s"\n' "$routed_prefix"
   printf 'ENABLE_DOWNSTREAM_WG1="no"\n'
   printf 'WG1_PRIVATE_KEY=""\n'
-  printf 'WG1_LISTEN_PORT="51821"\n'
+  printf 'WG1_LISTEN_PORT=""\n'
   printf 'WG1_SERVER_ADDRESS=""\n'
   printf 'WG1_CLIENT_PUBLIC_KEY=""\n'
   printf 'WG1_CLIENT_ADDRESS=""\n'
