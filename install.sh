@@ -1,6 +1,33 @@
 #!/usr/bin/env bash
 set -Eeuo pipefail
 TMP_DIR=""
+UI_ACTIVE=0
+ui_enter(){
+  if [[ -t 0 && -t 1 && "${TERM:-dumb}" != dumb ]]; then
+    printf '\033[?1049h\033[?25l'
+    UI_ACTIVE=1
+  fi
+}
+ui_leave(){
+  if (( UI_ACTIVE )); then
+    printf '\033[?0m\033[?25h\033[?1049l'
+    UI_ACTIVE=0
+  fi
+}
+ui_page(){
+  if (( UI_ACTIVE )); then printf '\033[2J\033[H'; fi
+  cat <<'EOF'
+┌──────────────────────────────────────────────────────────────────────┐
+│                 Route64 WireGuard 一键部署工具                       │
+│                         交互式安装向导                                │
+├──────────────────────────────────────────────────────────────────────┤
+│  本工具将自动检查环境、导入配置、生成密钥、安装隧道并执行连通性检测。 │
+│                                                                      │
+│  安全说明：不会覆盖已有 wg0/wg1，不会修改 SSH 和 IPv4 默认路由。     │
+│  需要你提供 Route64 当前隧道配置及该隧道分配的 Routed Prefix。       │
+└──────────────────────────────────────────────────────────────────────┘
+EOF
+}
 BACKUP_READY=0
 WG0_STARTED=0
 WG1_STARTED=0
@@ -24,6 +51,7 @@ cleanup(){
     echo "Rollback attempted. Backup: $backup_dir" >&2
   fi
   [[ -z "$TMP_DIR" ]] || rm -rf "$TMP_DIR"
+  ui_leave
   trap - EXIT
   exit "$rc"
 }
@@ -37,11 +65,8 @@ while (($#)); do case "$1" in --config) [[ $# -ge 2 ]] || { echo 'Missing config
 [[ "${ID:-}" == ubuntu || "${ID:-}" == debian ]] || { echo "Unsupported OS: ${PRETTY_NAME:-unknown}; Ubuntu/Debian only." >&2; exit 1; }
 if [[ -z "$CONFIG" ]]; then
   command -v curl >/dev/null 2>&1 || { echo 'curl is required for interactive mode.' >&2; exit 1; }
-  echo "============================================================"
-  echo " Route64 WireGuard Toolkit - interactive installer"
-  echo "============================================================"
-  echo "Paste the complete Route64 WireGuard config below."
-  echo "Include [Interface] and [Peer]. Finish with a line containing END."
+  ui_enter
+  ui_page
   TMP_DIR="$(mktemp -d /tmp/route64-wizard.XXXXXX)"
   chmod 700 "$TMP_DIR"
   ROUTE_CONF="$TMP_DIR/route64.conf"
@@ -56,13 +81,24 @@ if [[ -z "$CONFIG" ]]; then
   curl -fsSL "https://raw.githubusercontent.com/ztesfyfi/route64-wireguard-toolkit/main/configure.sh" -o "$TMP_DIR/configure.sh" || {
     echo "Could not download configure.sh. Check VPS DNS/network access and retry." >&2; exit 1;
   }
-  bash "$TMP_DIR/configure.sh" "$ROUTE_CONF" -o "$TMP_DIR/config.env"
+  bash "$TMP_DIR/configure.sh" "$ROUTE_CONF" -o "$TMP_DIR/config.env" --routed-prefix "$ROUTED_PREFIX"
   CONFIG="$TMP_DIR/config.env"
 fi
 [[ -n "$CONFIG" && -f "$CONFIG" ]] || { echo 'Config file missing. Use --config PATH or interactive mode.' >&2; exit 1; }
 chmod 600 "$CONFIG"
 # shellcheck disable=SC1090
 source "$CONFIG"
+if [[ -z "${CONFIG:-}" || "$CONFIG" == "$TMP_DIR/config.env" ]]; then
+  echo
+  echo "【第 3 步 / 4】下游 WireGuard 设置"
+  read -r -p "是否同时创建下游 WireGuard 服务端 wg1？[y/N]：" answer
+  if [[ "$answer" =~ ^[Yy]$ ]]; then
+    ENABLE_DOWNSTREAM_WG1=yes
+    read -r -p "客户端公钥（暂时没有可留空，之后可手动添加）：" WG1_CLIENT_PUBLIC_KEY
+  else
+    ENABLE_DOWNSTREAM_WG1=no
+  fi
+fi
 need(){ [[ -n "${!1:-}" ]] || { echo "Missing config value: $1" >&2; exit 1; }; }
 cidr6(){ [[ "$1" =~ ^[0-9A-Fa-f:]+/[0-9]{1,3}$ ]]; }
 need ROUTE64_PUBLIC_KEY; need ROUTE64_ENDPOINT; need ROUTE64_ADDRESS; need ROUTED_PREFIX
@@ -185,9 +221,11 @@ if [[ "${ENABLE_DOWNSTREAM_WG1:-no}" == yes ]]; then
   WG1_STARTED=1
   systemctl enable --now wg-quick@wg1
 fi
-echo "Installed. Backup: $backup_dir"
 echo
-echo "===== Built-in post-install checks ====="
+echo "【第 4 步 / 4】部署完成，正在进行最后检查"
+echo "配置备份位置：$backup_dir"
+echo
+echo "===== 安装后自动检测 ====="
 printf 'wg0 service: '; systemctl is-active wg-quick@wg0 || true
 printf 'IPv6 forwarding: '; sysctl -n net.ipv6.conf.all.forwarding 2>/dev/null || true
 printf 'wg0 peer handshake timestamp: '
@@ -212,4 +250,5 @@ if [[ "${ENABLE_DOWNSTREAM_WG1:-no}" == yes ]]; then
   echo "Reminder: allow this UDP port in both the cloud security group and VPS firewall."
 fi
 echo
-echo "Firewall policy was not changed. No IPv4 routes, NAT66, or unrelated WireGuard interfaces were modified."
+echo "防火墙规则未自动修改；未更改 IPv4 路由、NAT66 或其他 WireGuard 接口。"
+echo "如检测未通过，请根据上方提示检查 Route64 公钥登记、对端和 UDP 连通性。"
