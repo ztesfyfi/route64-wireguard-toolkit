@@ -4,10 +4,12 @@ umask 077
 
 INPUT=""
 OUTPUT="config/config.env"
+ROUTED_PREFIX_ARG=""
 while (($#)); do
   case "$1" in
     -o|--output) [[ $# -ge 2 ]] || { echo "Missing output path" >&2; exit 2; }; OUTPUT="$2"; shift 2 ;;
-    -h|--help) echo "Usage: bash configure.sh ROUTE64-WIREGUARD.conf [-o config/config.env]"; exit 0 ;;
+    --routed-prefix) [[ $# -ge 2 ]] || { echo "Missing routed prefix" >&2; exit 2; }; ROUTED_PREFIX_ARG="$2"; shift 2 ;;
+    -h|--help) echo "Usage: bash configure.sh ROUTE64-WIREGUARD.conf [-o config/config.env] [--routed-prefix PREFIX]"; exit 0 ;;
     -*) echo "Unknown option: $1" >&2; exit 2 ;;
     *) [[ -z "$INPUT" ]] || { echo "Only one input config is supported" >&2; exit 2; }; INPUT="$1"; shift ;;
   esac
@@ -59,7 +61,11 @@ echo "Imported current tunnel values from: $INPUT"
 echo "Tunnel address: $route64_address"
 echo "Route64 endpoint: $endpoint"
 echo "Peer public key: present"
-read -r -p "Enter the routed prefix shown for THIS tunnel in the Route64 manager (for example, its assigned /56): " routed_prefix
+if [[ -n "$ROUTED_PREFIX_ARG" ]]; then
+  routed_prefix="$ROUTED_PREFIX_ARG"
+else
+  read -r -p "Enter the routed prefix shown for THIS tunnel in the Route64 manager (for example, its assigned /56): " routed_prefix
+fi
 [[ -n "$routed_prefix" ]] || { echo "Routed prefix is required; no value guessed." >&2; exit 1; }
 
 mkdir -p "$(dirname "$OUTPUT")"
