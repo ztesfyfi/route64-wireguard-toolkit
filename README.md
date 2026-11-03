@@ -1,21 +1,67 @@
-# Route64 WireGuard Toolkit
+# Route64 WireGuard 工具包
 
-VPS-side deployment and diagnostics for Route64 IPv6 tunnels and optional downstream WireGuard peers. Scope: Ubuntu/Debian VPS only; this project does not configure OpenWrt/iStoreOS, Open-Box, LAN router advertisements, or client devices.
+用于在 VPS 端部署和诊断 Route64 IPv6 隧道，以及可选的下游 WireGuard 对等连接。
 
-## Files
-- `install.sh`: conservative setup of Route64 wg0 and optional downstream wg1.
-- `diagnose.sh`: read-only diagnostics for WireGuard, IPv6 routes/rules, forwarding, firewall, and services.
-- `config/config.example`: configuration template.
-- `docs/TROUBLESHOOTING.md`: common failure checks.
+**项目范围：仅支持 Ubuntu / Debian VPS。** 本项目不负责配置 OpenWrt、iStoreOS、Open-Box、局域网路由器通告（RA），也不会配置客户端设备。
 
-## Quick start
-1. Copy `config/config.example` to `config/config.env` and fill values from the Route64 panel.
-2. Run `chmod 600 config/config.env`.
-3. Review the script, then run `sudo bash install.sh --config config/config.env`.
-4. Run `sudo bash diagnose.sh`.
+## 文件说明
 
-The installer requires root and refuses to overwrite existing `/etc/wireguard/wg0.conf` or `wg1.conf`. It backs up existing WireGuard files under `/root/route64-wg-backups/`, enables IPv6 forwarding, and does not flush firewall rules, change IPv4 routes, configure NAT66, or touch unrelated WireGuard interfaces. Firewall rules are intentionally not automated: allow the selected UDP port and IPv6 forwarding according to your own nftables/iptables policy.
+- `install.sh`：部署 Route64 的 `wg0`，并可选择部署下游 WireGuard 接口 `wg1`。
+- `diagnose.sh`：只读诊断 WireGuard、IPv6 路由与规则、IPv6 转发、防火墙和相关服务状态。
+- `config/config.example`：配置文件模板。
+- `docs/TROUBLESHOOTING.md`：常见故障的检查方法。
 
-`ROUTE64_ALLOWED_IPS` defaults to `::/1,8000::/1`; confirm this against your Route64 panel. `ROUTED_PREFIX` is the prefix routed to your VPS, not the tunnel interface address. The optional wg1 peer is for a downstream WireGuard client; it does not configure that client or LAN RA/SLAAC.
+## 快速开始
 
-Never share private keys, preshared keys, or unredacted config files. The diagnostic script redacts key lines and makes no changes.
+1. 将 `config/config.example` 复制为 `config/config.env`，并根据 Route64 控制面板填写配置。
+2. 设置配置文件权限：
+   ```bash
+   chmod 600 config/config.env
+   ```
+3. 检查安装脚本内容，确认理解其操作后再执行：
+   ```bash
+   sudo bash install.sh --config config/config.env
+   ```
+4. 部署后运行诊断脚本：
+   ```bash
+   sudo bash diagnose.sh
+   ```
+
+## 安装脚本行为与注意事项
+
+安装脚本需要以 root 权限运行。如果检测到以下配置文件已经存在，脚本会拒绝覆盖：
+
+- `/etc/wireguard/wg0.conf`
+- `/etc/wireguard/wg1.conf`（仅在启用下游 wg1 时检查）
+
+脚本会将已有的 WireGuard 文件备份到：
+
+```text
+/root/route64-wg-backups/
+```
+
+脚本会启用 IPv6 转发，但**不会**执行以下操作：
+
+- 清空或重写现有防火墙规则；
+- 修改 IPv4 路由；
+- 配置 NAT66；
+- 修改其他无关的 WireGuard 接口。
+
+防火墙规则不会由脚本自动配置。请根据 VPS 当前使用的 nftables / iptables 规则，自行确认已放行所需的 UDP 监听端口，并允许必要的 IPv6 转发流量。
+
+## 配置说明
+
+- `ROUTE64_ALLOWED_IPS` 默认值为 `::/1,8000::/1`。使用前请对照 Route64 控制面板确认是否适合你的隧道配置。
+- `ROUTED_PREFIX` 表示由 VPS 路由转发的 IPv6 前缀，不是 WireGuard 隧道接口地址。
+- 可选的 `wg1` 用于连接下游 WireGuard 客户端。脚本不会替下游客户端生成或安装客户端配置，也不会配置局域网 RA / SLAAC。
+
+## 安全提示
+
+- 不要公开私钥（PrivateKey）、预共享密钥（PresharedKey）或未脱敏的完整配置文件。
+- 诊断脚本为只读脚本，不会主动修改系统配置。
+- 诊断报告仍可能包含公网 IP、主机名、路由和网络结构等信息。分享报告前，请先检查并按需脱敏。
+- 执行安装前，请先检查配置文件和脚本内容，并确认 VPS 上没有需要保留且会与本工具冲突的 WireGuard 配置。
+
+## 免责声明
+
+本工具用于辅助部署和故障诊断，不保证适用于所有 VPS 网络环境或 Route64 配置。请先备份重要配置，并在了解脚本行为后再执行。
