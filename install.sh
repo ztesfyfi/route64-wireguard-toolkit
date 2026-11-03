@@ -44,6 +44,7 @@ read_ui_key() {
   local key next key_code
   REPLY=""
   IFS= read -rsn1 key || return 1
+  if [[ -z "$key" ]]; then REPLY="ENTER"; return 0; fi
   key_code=$(printf '%d' "'$key")
   if [[ "$key_code" == 27 ]]; then
     IFS= read -rsn1 -t 0.04 next || return 0
