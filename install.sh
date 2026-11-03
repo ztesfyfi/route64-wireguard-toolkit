@@ -32,7 +32,11 @@ trap cleanup EXIT
 CONFIG=""
 while (($#)); do case "$1" in --config) [[ $# -ge 2 ]] || { echo 'Missing config path' >&2; exit 2; }; CONFIG="$2"; shift 2;; -h|--help) echo 'Usage: sudo bash install.sh --config PATH'; exit 0;; *) echo "Unknown argument: $1" >&2; exit 2;; esac; done
 [[ $EUID -eq 0 ]] || { echo 'Run as root.' >&2; exit 1; }
+[[ -r /etc/os-release ]] || { echo 'Cannot identify Linux distribution.' >&2; exit 1; }
+. /etc/os-release
+[[ "${ID:-}" == ubuntu || "${ID:-}" == debian ]] || { echo "Unsupported OS: ${PRETTY_NAME:-unknown}; Ubuntu/Debian only." >&2; exit 1; }
 if [[ -z "$CONFIG" ]]; then
+  command -v curl >/dev/null 2>&1 || { echo 'curl is required for interactive mode.' >&2; exit 1; }
   echo "============================================================"
   echo " Route64 WireGuard Toolkit - interactive installer"
   echo "============================================================"
@@ -84,6 +88,16 @@ if [[ "${ENABLE_DOWNSTREAM_WG1:-no}" == yes ]]; then
  cidr6 "$WG1_CLIENT_ADDRESS" || { echo 'WG1_CLIENT_ADDRESS must be IPv6 CIDR' >&2; exit 1; }
 fi
 command -v apt-get >/dev/null; apt-get update; DEBIAN_FRONTEND=noninteractive apt-get install -y wireguard-tools python3 iproute2 iputils-ping
+python3 - "$ROUTE64_ADDRESS" "$ROUTED_PREFIX" <<'PY'
+import ipaddress, sys
+try:
+    address = ipaddress.ip_interface(sys.argv[1])
+    prefix = ipaddress.ip_network(sys.argv[2], strict=False)
+    if address.version != 6 or prefix.version != 6:
+        raise ValueError("IPv6 values are required")
+except Exception as exc:
+    raise SystemExit(f"Invalid Route64 IPv6 address/prefix: {exc}")
+PY
 if [[ "${ENABLE_DOWNSTREAM_WG1:-no}" == yes ]]; then
  WG1_LISTEN_PORT="$(python3 - "${WG1_LISTEN_PORT:-}" <<'PY'
 import secrets, socket, sys
@@ -121,7 +135,6 @@ mkdir -m 700 "$backup_dir"
 cp -a /etc/wireguard/. "$backup_dir/" 2>/dev/null || true
 BACKUP_READY=1
 make_key(){ local supplied="$1" target="$2"; if [[ -n "$supplied" ]]; then printf '%s\n' "$supplied" > "$target"; else umask 077; wg genkey > "$target"; fi; chmod 600 "$target"; }
-WG0_CREATED=1
 WG0_CREATED=1
 make_key "${ROUTE64_PRIVATE_KEY:-}" /etc/wireguard/wg0.key; echo "Route64 client public key (register in the Route64 manager if this is a newly generated key):"; wg pubkey < /etc/wireguard/wg0.key; p0="$(cat /etc/wireguard/wg0.key)"
 cat > /etc/wireguard/wg0.conf <<EOF
