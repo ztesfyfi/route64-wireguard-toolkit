@@ -1,6 +1,6 @@
 # Route64 WireGuard 工具包
 
-用于在 VPS 端部署和诊断 Route64 IPv6 隧道，以及可选的下游 WireGuard 对等连接和双上游隧道故障切换。
+用于在 VPS 端部署和诊断 Route64 IPv6 隧道，并提供 IPv6 查询、下游 WireGuard 配置参考和双上游隧道故障切换工具。
 
 **项目范围：仅支持 Ubuntu / Debian VPS。** 本项目不负责配置 OpenWrt、iStoreOS、Open-Box、局域网路由器通告（RA），也不会配置客户端设备。
 
@@ -41,7 +41,7 @@ bash <(curl -fsSL https://raw.githubusercontent.com/ztesfyfi/route64-wireguard-t
 2. **查询 VPS 当前公网 IPv6**：查询公网出口 IPv6，并列出本机全局 IPv6 地址及 wg0 握手状态。
 3. **查看 WireGuard 与 IPv6 状态**：查看接口、路由和 WireGuard 状态。
 
-安装器会自动提取 `PrivateKey`、`Address`、`PublicKey`、`AllowedIPs`、`Endpoint`、`PersistentKeepalive` 和可选 `MTU`，生成 `/etc/wireguard/wg0.conf`，校验配置后启动 `wg-quick@wg0`。粘贴内容中附带的注释、`ip route add` 和 `ping` 命令会被忽略，不会写入 WireGuard 配置。
+安装器会自动提取 `PrivateKey`、`Address`、`PublicKey`、可选 `PresharedKey`、`AllowedIPs`、`Endpoint`、`PersistentKeepalive` 和可选 `MTU`，生成 `/etc/wireguard/wg0.conf`，校验配置后启动 `wg-quick@wg0`。粘贴内容中附带的注释、`ip route add` 和 `ping` 命令会被忽略，不会写入 WireGuard 配置。
 
 **不需要手动输入 Routed Prefix、隧道网关或接口名。** 对于常见的 `AllowedIPs = ::/1, 8000::/1`，`wg-quick` 会自动建立 IPv6 分流默认路由。不要再照抄配置注释中使用临时接口名的 `ip route add ::/0 via ...`，否则可能与 WireGuard 自动路由冲突。
 
