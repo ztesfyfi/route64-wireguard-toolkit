@@ -59,3 +59,27 @@ bash configure.sh /path/to/current-route64.conf
 - 也可以手动指定该范围内的端口；若端口已被占用或无法绑定，安装会中止。
 - 安装输出会显示最终端口。请将该 UDP 端口放行于 VPS 防火墙和云厂商安全组。
 - 端口检测是在安装时进行的短暂绑定测试，测试结束后才由 WireGuard 接管；若其他程序随后抢占端口，仍可能发生冲突。
+
+
+## 双隧道自动切换故障排查
+
+- 检查 `sudo systemctl status wg-quick@wg0 wg-quick@wg2 route64-failover`。
+- 查看控制器日志：`sudo journalctl -u route64-failover -n 100 --no-pager`。
+- 查看当前选中的上游：`cat /run/route64-failover.active`。
+- 分别测试两条隧道：`ping -6 -I wg0 -c 3 2606:4700:4700::1111` 和 `ping -6 -I wg2 -c 3 2606:4700:4700::1111`。
+- 检查 `wg0.conf`、`wg2.conf` 的 `[Interface]` 段都设置了 `Table = off`。否则 wg-quick 自己创建的策略路由可能与控制器冲突。
+- 检查主路由表：`ip -6 route show`。控制器管理 `::/1` 和 `8000::/1` 两条路由。
+- 确认探测目标允许 ICMPv6；目标屏蔽 ping 会导致误判为隧道故障，可在 `/etc/default/route64-failover` 中更换 `PROBE_TARGET`。
+- 如果两条隧道都探测失败，控制器会保留最后一次路由，不会声称已有可用出口。
+
+### 下游公网前缀切换失败
+
+控制器只切换 VPS 的 IPv6 出口路由。下游 wg1 使用的 Route64 Routed Prefix 是否能从备用隧道回程，取决于 Route64 是否允许该前缀经备用隧道路由。必须在 Route64 面板/服务端侧确认两条隧道的前缀路由关系；仅切换 VPS 默认路由不能保证下游公网入站可用。
+
+### 停止控制器
+
+```bash
+sudo systemctl disable --now route64-failover
+```
+
+停止控制器不会自动恢复此前的路由策略。停止前请确认当前 IPv6 路由符合你的预期。
