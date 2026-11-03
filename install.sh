@@ -33,7 +33,7 @@ command -v apt-get >/dev/null; apt-get update; DEBIAN_FRONTEND=noninteractive ap
 install -d -m 700 /etc/wireguard /root/route64-wg-backups
 backup_dir="/root/route64-wg-backups/$(date +%Y%m%d-%H%M%S)"; mkdir -m 700 "$backup_dir"; cp -a /etc/wireguard/. "$backup_dir/" 2>/dev/null || true
 make_key(){ local supplied="$1" target="$2"; if [[ -n "$supplied" ]]; then printf '%s\n' "$supplied" > "$target"; else umask 077; wg genkey > "$target"; fi; chmod 600 "$target"; }
-make_key "${ROUTE64_PRIVATE_KEY:-}" /etc/wireguard/wg0.key; p0="$(cat /etc/wireguard/wg0.key)"
+make_key "${ROUTE64_PRIVATE_KEY:-}" /etc/wireguard/wg0.key; echo "Route64 client public key (register in the Route64 manager if this is a newly generated key):"; wg pubkey < /etc/wireguard/wg0.key; p0="$(cat /etc/wireguard/wg0.key)"
 cat > /etc/wireguard/wg0.conf <<EOF
 [Interface]
 PrivateKey = $p0
