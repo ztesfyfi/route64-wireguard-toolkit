@@ -40,23 +40,23 @@ Never share private keys, preshared keys, tokens, or unredacted config files. Th
 Route64 分配的传输地址和路由前缀不能从 VPS 本机可靠推算。请以当前 Route64 管理面板为准。
 
 
-## 交互式安装无法继续
+## 中文全屏安装器无法继续
 
-当前推荐直接运行交互式安装器：
+直接运行：
 
 ```bash
 bash <(curl -fsSL https://raw.githubusercontent.com/ztesfyfi/route64-wireguard-toolkit/main/install.sh)
 ```
 
-- 粘贴 Route64 导出的完整配置后，必须另起一行输入 `END` 结束；不要把 `END` 粘在配置行尾。
-- 如果下载 `configure.sh` 失败，先检查 VPS 是否能解析并访问 `raw.githubusercontent.com`，再重试。
-- 如果提示缺少 Routed Prefix，请从 Route64 当前隧道页面确认并输入；不能使用旧 VPS 的前缀，也不能把隧道传输地址当作 Routed Prefix。
-- 如果提示 `wg0.conf already exists` 或 `wg1.conf already exists`，安装器为了避免破坏现有隧道会停止。先运行诊断脚本并自行确认旧配置是否可以迁移；不要直接删除配置。
-- 如果新生成了 Route64 客户端密钥，安装器会输出公钥。先把公钥登记到 Route64 面板，再检查握手。
-- 安装器完成配置和启动后，会尝试通过 wg0 做 IPv6 探测。探测失败时它会给出排查方向，但不会自动修改防火墙或云安全组。
-
-仍可在仓库目录中单独运行 `configure.sh` 生成配置文件，再通过 `install.sh --config PATH` 做非交互式安装。配置文件会作为 Shell 变量文件加载，只能使用可信文件。
-
+- 终端支持备用屏幕时会进入独立全屏页面；不支持时使用普通文本菜单。
+- 粘贴 Route64 Linux WireGuard 配置后，必须另起一行输入 `END` 结束。
+- 解析器读取 `[Interface]` 和第一个 `[Peer]` 中的 WireGuard 字段；附带的注释、`ip route add` 和 `ping` 命令会忽略。
+- 不再要求 Routed Prefix。基础 `wg0` 隧道只需要 Route64 导出的隧道配置。
+- `AllowedIPs = ::/1, 8000::/1` 由 `wg-quick` 自动建立分流默认路由；不要重复添加示例命令中的 `::/0` 路由。
+- 若 `wg0.conf` 已存在，安装器会拒绝覆盖。请先运行只读诊断脚本并确认现有配置用途。
+- 如果没有 PrivateKey，安装器会生成新密钥并显示公钥；先在 Route64 面板登记公钥，再等待握手。
+- 菜单中的 IPv6 查询显示当前公网出口地址、本机全局 IPv6 和 wg0 握手信息。没有 IPv6 出口时会显示查询失败。
+- 安装后若 IPv6 探测失败，先确认 Route64 公钥登记、Endpoint、UDP 出口及 VPS 是否有可用 IPv6 上游。
 
 ## 下游 WireGuard 端口冲突或无法连接
 
