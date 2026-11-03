@@ -155,6 +155,8 @@ try:
     if ipaddress.ip_interface(address).version != 6: raise ValueError()
 except ValueError: raise SystemExit("配置错误：IPv6 Address 格式不正确。")
 pub=p.get("PublicKey","")
+psk=p.get("PresharedKey","")
+if psk and not re.fullmatch(r"[A-Za-z0-9+/]{43}=", psk): raise SystemExit("配置错误：PresharedKey 格式不正确。")
 if not re.fullmatch(r"[A-Za-z0-9+/]{43}=", pub): raise SystemExit("配置错误：[Peer] PublicKey 缺失或格式不正确。")
 endpoint=p.get("Endpoint","")
 if not re.fullmatch(r"(?:\[[0-9A-Fa-f:]+\]|[A-Za-z0-9.-]+):[0-9]{1,5}", endpoint):
@@ -227,6 +229,7 @@ install_tunnel() {
   local item
   for item in "${parsed[@]}"; do values+=("$(printf '%s' "$item" | base64 -d)"); done
   local private="${values[0]}" address="${values[1]}" public="${values[2]}"
+  local psk="${values[3]}"
   local allowed="${values[3]}" endpoint="${values[4]}" keepalive="${values[5]}" mtu="${values[6]}"
 
   draw_header
@@ -238,6 +241,7 @@ install_tunnel() {
   printf "MTU：%s\n" "$mtu"
   echo "私钥：已读取（不显示）"
   echo "对端公钥：已读取"
+  [[ -z "$psk" ]] || echo "预共享密钥：已读取"
   echo
   echo "将创建 /etc/wireguard/wg0.conf，并启用 wg-quick@wg0。"
   echo "不需要手动填写 Routed Prefix，也不需要手动添加 ::/0 路由。"
@@ -270,6 +274,7 @@ AllowedIPs = $allowed
 PersistentKeepalive = $keepalive
 EOF
   unset private
+  unset private psk
   chmod 600 /etc/wireguard/wg0.conf
   if ! wg-quick strip wg0 >/dev/null; then
     echo "WireGuard 配置校验失败，未启动隧道。"
