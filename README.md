@@ -27,55 +27,46 @@
 
 ## 单隧道部署方法
 
-以下示例适用于 Ubuntu / Debian VPS。建议先备份现有 WireGuard 配置，并确认 VPS 没有需要保留的同名接口。
+### 推荐：交互式一键安装
 
-1. 安装基础工具并下载项目：
-
-   ```bash
-   sudo apt-get update
-   sudo apt-get install -y git wireguard-tools
-   git clone https://github.com/ztesfyfi/route64-wireguard-toolkit.git
-   cd route64-wireguard-toolkit
-   ```
-
-2. 从当前 Route64 管理面板下载该隧道的 WireGuard `.conf` 文件，然后导入：
-
-   ```bash
-   bash configure.sh /你的文件路径/route64.conf
-   ```
-
-   按提示输入**当前这条隧道**分配的路由前缀。脚本会生成权限为 `600` 的 `config/config.env`，不会覆盖已有文件。
-
-3. 检查 `config/config.env`，确认地址、Endpoint、公钥和路由前缀都来自当前隧道。需要下游客户端时，再按需设置 `ENABLE_DOWNSTREAM_WG1="yes"` 并填写客户端公钥；不启用则保持 `no`。
-
-4. 执行安装：
-
-   ```bash
-   sudo bash install.sh --config config/config.env
-   ```
-
-5. 部署后检查：
-
-   ```bash
-   sudo bash diagnose.sh
-   sudo wg show
-   ip -6 route
-   ```
-
-**说明：** 当前安装脚本要求已有配置文件。下面这条不带参数的远程命令目前不支持，不能当作一键交互安装命令：
+在 VPS 上以 root 身份执行这一条命令：
 
 ```bash
 bash <(curl -fsSL https://raw.githubusercontent.com/ztesfyfi/route64-wireguard-toolkit/main/install.sh)
 ```
 
-也可以在仓库目录中下载并执行安装脚本：
+脚本会在终端内引导完成：
+
+1. 粘贴 Route64 面板导出的完整 WireGuard 配置（以单独一行 `END` 结束）。
+2. 输入当前这条隧道在 Route64 面板分配的 Routed Prefix。
+3. 选择是否创建下游 WireGuard 服务端 `wg1)，并可输入客户端公钥。
+4. 自动检查配置、安装缺少的 WireGuard 工具、生成必要密钥和 ULA 地址。
+5. 备份现有 WireGuard 目录内容，创建配置并启动服务。
+6. 输出服务状态、下游 UDP 端口和诊断提示。
+
+无需先 clone 仓库、创建 config.env、手动运行 configure.sh，也不需要在安装后再复制一串安装命令。脚本需要从 GitHub 下载配置验证助手，因此 VPS 必须能访问 raw.githubusercontent.com。
+
+**粘贴配置的方式：** 将 Route64 导出的完整配置内容粘贴到终端，包含 `[Interface]` 和 `[Peer]`。粘贴完后，另起一行输入 `END`。不要把私钥或完整配置发到聊天、工单或公开仓库。
+
+### 非交互式/自动化安装
+
+如果已经有由本项目 `configure.sh` 生成并审核过的可信配置文件，可以继续使用：
 
 ```bash
-curl -fsSLO https://raw.githubusercontent.com/ztesfyfi/route64-wireguard-toolkit/main/install.sh
-sudo bash install.sh --config config/config.env
+bash install.sh --config config/config.env
 ```
 
-首次部署前请检查脚本和配置；不要把包含私钥的配置文件公开。
+`--config` 模式适合自动化部署。配置文件会被当作 Shell 变量文件加载，因此**只能使用自己生成或确认可信的配置文件**，不要加载来源不明的文件。
+
+### 安装边界与安全策略
+
+- 仅支持 Ubuntu / Debian VPS，必须以 root 身份运行。
+- 如果 `/etc/wireguard/wg0.conf` 已存在，脚本拒绝覆盖；启用 wg1 时也拒绝覆盖已有 `wg1.conf`。
+- 安装前会备份 `/etc/wireguard/` 到 `/root/route64-wg-backups/`；失败时尝试停止新服务、删除本次新建配置并恢复备份。
+- 缺少 Route64 客户端私钥时会生成新密钥并输出公钥。必须先把公钥登记到 Route64 面板，隧道才可能完成握手。
+- 自动启用 IPv6 转发，但不会重写防火墙、修改 IPv4 路由、配置 NAT66 或修改其他 WireGuard 接口。
+- 下游 UDP 端口会从 49152–65535 选择；仍需在云安全组和 VPS 防火墙放行该 UDP 端口。
+- 安装成功代表配置已生成且服务启动，不等于公网 IPv6 已经验证成功。请继续查看握手与 IPv6 探测结果。
 
 ## 双 Route64 隧道自动故障切换
 
