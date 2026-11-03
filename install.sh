@@ -12,17 +12,14 @@ WG0_STARTED=0
 OLD_FORWARDING=""
 SYSCTL_FILE_CREATED=0
 
+# 不启用备用屏幕（alternate screen）。
+# 部分 SSH 客户端在备用屏幕中会把鼠标滚轮转换为 ESC [ A / ESC [ B，
+# 这些序列会进入 stdin 并被菜单误认为用户输入。普通终端模式可保留正常滚屏。
 ui_enter() {
-  if [[ -t 0 && -t 1 && "${TERM:-dumb}" != "dumb" ]]; then
-    printf '\033[?1000l\033[?1002l\033[?1003l\033[?1006l\033[?1049h\033[?25l'
-    UI_ACTIVE=1
-  fi
+  UI_ACTIVE=0
 }
 ui_leave() {
-  if (( UI_ACTIVE )); then
-    printf '\033[?1000l\033[?1002l\033[?1003l\033[?1006l\033[0m\033[?25h\033[?1049l'
-    UI_ACTIVE=0
-  fi
+  UI_ACTIVE=0
 }
 ui_clear() {
   if (( UI_ACTIVE )); then printf '\033[2J\033[H'; else printf '\n'; fi
