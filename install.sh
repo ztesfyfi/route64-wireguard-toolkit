@@ -230,7 +230,7 @@ install_tunnel() {
   for item in "${parsed[@]}"; do values+=("$(printf '%s' "$item" | base64 -d)"); done
   local private="${values[0]}" address="${values[1]}" public="${values[2]}"
   local psk="${values[3]}"
-  local allowed="${values[3]}" endpoint="${values[4]}" keepalive="${values[5]}" mtu="${values[6]}"
+  local allowed="${values[4]}" endpoint="${values[5]}" keepalive="${values[6]}" mtu="${values[7]}"
 
   draw_header
   echo "【配置识别结果】"
@@ -273,7 +273,8 @@ Endpoint = $endpoint
 AllowedIPs = $allowed
 PersistentKeepalive = $keepalive
 EOF
-  unset private
+  if [[ -n "$psk" ]]; then sed -i "/^PublicKey = /a PresharedKey = $psk" /etc/wireguard/wg0.conf; fi
+  unset private psk
   unset private psk
   chmod 600 /etc/wireguard/wg0.conf
   if ! wg-quick strip wg0 >/dev/null; then
