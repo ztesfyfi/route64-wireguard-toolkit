@@ -13,5 +13,5 @@ section 'IPv6 addresses, rules, routes'; run ip -6 address show; run ip -6 rule 
 section 'IPv4 routes'; run ip -4 route show
 section 'Forwarding and RA'; for k in net.ipv6.conf.all.forwarding net.ipv6.conf.default.forwarding net.ipv6.conf.all.accept_ra net.ipv6.conf.default.accept_ra; do sysctl "$k" 2>&1 || true; done
 section 'Firewall'; command -v nft >/dev/null && run nft list ruleset; command -v ip6tables >/dev/null && run ip6tables -S; command -v ip6tables >/dev/null && run ip6tables -L FORWARD -n -v; command -v iptables >/dev/null && run iptables -L FORWARD -n -v
-section 'Services and UDP listeners'; systemctl --no-pager --full status wg-quick@wg0 wg-quick@wg1 2>&1 || true; command -v ss >/dev/null && run ss -lunp
+section 'Services and UDP listeners'; systemctl --no-pager --full status wg-quick@wg0 wg-quick@wg1 wg-quick@wg2 route64-failover 2>&1 || true; [[ ! -r /run/route64-failover.active ]] || { echo 'Active Route64 uplink:'; cat /run/route64-failover.active; }; command -v ss >/dev/null && run ss -lunp
 echo; echo "Report saved: $REPORT"; echo 'Read-only: no configuration changed. Redact public IPs/hostnames before sharing.'
