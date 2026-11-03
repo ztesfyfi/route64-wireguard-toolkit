@@ -16,7 +16,7 @@ if [[ -z "$CONFIG" ]]; then
   : > "$ROUTE_CONF"
   while IFS= read -r line; do
     [[ "$line" == "END" ]] && break
-    printf '%s\\n' "$line" >> "$ROUTE_CONF"
+    printf '%s\n' "$line" >> "$ROUTE_CONF"
   done
   [[ -s "$ROUTE_CONF" ]] || { echo "No configuration was pasted." >&2; exit 1; }
   echo
