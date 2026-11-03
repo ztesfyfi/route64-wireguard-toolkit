@@ -89,11 +89,7 @@ query_ipv6() {
   if need_cmd curl; then
     for url in "https://api64.ipify.org" "https://ifconfig.co/ip" "https://icanhazip.com"; do
       addr="$(curl -6 -fsS --connect-timeout 4 --max-time 8 "$url" 2>/dev/null | tr -d '[:space:]' || true)"
-      if [[ -n "$addr" ]] && python3 - "$addr" <<'PY' >/dev/null 2>&1
-import ipaddress,sys
-ip=ipaddress.ip_address(sys.argv[1])
-assert ip.version == 6
-PY
+      if [[ -n "$addr" ]] && [[ "$addr" =~ ^[0-9A-Fa-f:]+$ ]] && [[ "$addr" == *:* ]]; then
       then
         printf '\n公网 IPv6：\n  %s\n' "$addr"
         found=1
@@ -303,6 +299,13 @@ EOF
   else
     echo "IPv6 探测未通过。先检查 Route64 面板是否登记了上面显示的客户端公钥，以及 Endpoint/UDP 连通性。"
   fi
+  echo "经 wg0 查询公网 IPv6："
+  public_v6="$(curl -6 --interface wg0 -fsS --connect-timeout 4 --max-time 8 https://api64.ipify.org 2>/dev/null | tr -d '[:space:]' || true)"
+  if [[ "$public_v6" =~ ^[0-9A-Fa-f:]+$ && "$public_v6" == *:* ]]; then
+    printf "  %s\\n" "$public_v6"
+  else
+    echo "  查询失败（可能尚未完成握手或 IPv6 出口不可用）。"
+  fi
   echo
   echo "配置文件：/etc/wireguard/wg0.conf"
   echo "私钥文件：/etc/wireguard/wg0.key（权限 600）"
@@ -346,7 +349,7 @@ EOF
   ui_leave
 }
 
-if [[ "${1:-}" == "--query-ipv6" ]]; then query_ipv6; exit 0; fi
+if [[ "${1:-}" == "--query-ipv6" ]]; then ui_enter; query_ipv6; ui_leave; exit 0; fi
 if [[ "${1:-}" == "--help" || "${1:-}" == "-h" ]]; then
   echo "用法：sudo bash install.sh（进入中文全屏菜单）"
   echo "      bash install.sh --query-ipv6（查询公网 IPv6）"
