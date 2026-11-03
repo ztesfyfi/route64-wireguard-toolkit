@@ -102,7 +102,7 @@ query_ipv6() {
   echo
   echo "VPS 本机全局 IPv6 地址："
   if need_cmd ip; then
-    ip -6 -o addr show scope global 2>/dev/null | awk '{split($4,a,"/"); printf "  %s  (%s)\\n", a[1], $2}' || true
+    ip -6 -o addr show scope global 2>/dev/null | awk '{print "  " $4 " (" $2 ")"}' || true
   else
     echo "  ip 命令不可用"
   fi
@@ -301,7 +301,7 @@ EOF
   echo "经 wg0 查询公网 IPv6："
   public_v6="$(curl -6 --interface wg0 -fsS --connect-timeout 4 --max-time 8 https://api64.ipify.org 2>/dev/null | tr -d '[:space:]' || true)"
   if [[ "$public_v6" =~ ^[0-9A-Fa-f:]+$ && "$public_v6" == *:* ]]; then
-    printf "  %s\\n" "$public_v6"
+    echo "  $public_v6"
   else
     echo "  查询失败（可能尚未完成握手或 IPv6 出口不可用）。"
   fi
