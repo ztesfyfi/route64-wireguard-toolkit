@@ -3,7 +3,31 @@ set -Eeuo pipefail
 CONFIG=""
 while (($#)); do case "$1" in --config) [[ $# -ge 2 ]] || { echo 'Missing config path' >&2; exit 2; }; CONFIG="$2"; shift 2;; -h|--help) echo 'Usage: sudo bash install.sh --config PATH'; exit 0;; *) echo "Unknown argument: $1" >&2; exit 2;; esac; done
 [[ $EUID -eq 0 ]] || { echo 'Run as root.' >&2; exit 1; }
-[[ -n "$CONFIG" && -f "$CONFIG" ]] || { echo 'Specify an existing config with --config PATH' >&2; exit 1; }
+if [[ -z "$CONFIG" ]]; then
+  echo "============================================================"
+  echo " Route64 WireGuard Toolkit - interactive installer"
+  echo "============================================================"
+  echo "Paste the complete Route64 WireGuard config below."
+  echo "Include [Interface] and [Peer]. Finish with a line containing END."
+  TMP_DIR="$(mktemp -d /tmp/route64-wizard.XXXXXX)"
+  chmod 700 "$TMP_DIR"
+  trap 'rm -rf "$TMP_DIR"' EXIT
+  ROUTE_CONF="$TMP_DIR/route64.conf"
+  : > "$ROUTE_CONF"
+  while IFS= read -r line; do
+    [[ "$line" == "END" ]] && break
+    printf '%s\\n' "$line" >> "$ROUTE_CONF"
+  done
+  [[ -s "$ROUTE_CONF" ]] || { echo "No configuration was pasted." >&2; exit 1; }
+  echo
+  echo "Downloading the configuration validator..."
+  curl -fsSL "https://raw.githubusercontent.com/ztesfyfi/route64-wireguard-toolkit/main/configure.sh" -o "$TMP_DIR/configure.sh" || {
+    echo "Could not download configure.sh. Check VPS DNS/network access and retry." >&2; exit 1;
+  }
+  bash "$TMP_DIR/configure.sh" "$ROUTE_CONF" -o "$TMP_DIR/config.env"
+  CONFIG="$TMP_DIR/config.env"
+fi
+[[ -n "$CONFIG" && -f "$CONFIG" ]] || { echo 'Config file missing. Use --config PATH or interactive mode.' >&2; exit 1; }
 chmod 600 "$CONFIG"
 # shellcheck disable=SC1090
 source "$CONFIG"
