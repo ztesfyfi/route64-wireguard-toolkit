@@ -30,7 +30,7 @@ cleanup(){
 trap cleanup EXIT
 
 CONFIG=""
-while (($#)); do case "$1" in --config) [[ $# -ge 2 ]] || { echo 'Missing config path' >&2; exit 2; }; CONFIG="$2"; shift 2;; -h|--help) echo 'Usage: sudo bash install.sh --config PATH'; exit 0;; *) echo "Unknown argument: $1" >&2; exit 2;; esac; done
+while (($#)); do case "$1" in --config) [[ $# -ge 2 ]] || { echo 'Missing config path' >&2; exit 2; }; CONFIG="$2"; shift 2;; -h|--help) echo 'Usage: sudo bash install.sh [--config PATH]'; exit 0;; *) echo "Unknown argument: $1" >&2; exit 2;; esac; done
 [[ $EUID -eq 0 ]] || { echo 'Run as root.' >&2; exit 1; }
 [[ -r /etc/os-release ]] || { echo 'Cannot identify Linux distribution.' >&2; exit 1; }
 . /etc/os-release
@@ -87,7 +87,12 @@ if [[ "${ENABLE_DOWNSTREAM_WG1:-no}" == yes ]]; then
  cidr6 "$WG1_SERVER_ADDRESS" || { echo 'WG1_SERVER_ADDRESS must be IPv6 CIDR' >&2; exit 1; }
  cidr6 "$WG1_CLIENT_ADDRESS" || { echo 'WG1_CLIENT_ADDRESS must be IPv6 CIDR' >&2; exit 1; }
 fi
-command -v apt-get >/dev/null; apt-get update; DEBIAN_FRONTEND=noninteractive apt-get install -y wireguard-tools python3 iproute2 iputils-ping
+command -v apt-get >/dev/null || { echo 'apt-get is required on Ubuntu/Debian.' >&2; exit 1; }
+if ! command -v wg >/dev/null 2>&1 || ! command -v wg-quick >/dev/null 2>&1 || ! command -v python3 >/dev/null 2>&1 || ! command -v ip >/dev/null 2>&1 || ! command -v ping >/dev/null 2>&1; then
+  echo "Installing missing system dependencies..."
+  apt-get update
+  DEBIAN_FRONTEND=noninteractive apt-get install -y wireguard-tools python3 iproute2 iputils-ping
+fi
 python3 - "$ROUTE64_ADDRESS" "$ROUTED_PREFIX" <<'PY'
 import ipaddress, sys
 try:
