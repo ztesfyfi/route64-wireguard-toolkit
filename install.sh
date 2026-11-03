@@ -144,7 +144,7 @@ for raw in open(path, encoding="utf-8-sig"):
     value=value.split("#",1)[0].split(";",1)[0].strip()
     if key in {"PrivateKey","Address","MTU"} and section=="Interface":
         data[section][key]=value
-    elif key in {"PublicKey","AllowedIPs","Endpoint","PersistentKeepalive"} and section=="Peer":
+    elif key in {"PublicKey","PresharedKey","AllowedIPs","Endpoint","PersistentKeepalive"} and section=="Peer":
         data[section][key]=value
 
 i,p=data["Interface"],data["Peer"]
@@ -175,7 +175,7 @@ if keep and (not keep.isdigit() or not 0 <= int(keep) <= 65535):
 private=i.get("PrivateKey","")
 if private and not re.fullmatch(r"[A-Za-z0-9+/]{43}=", private):
     raise SystemExit("配置错误：PrivateKey 格式不正确。")
-values=[private,address,pub,allowed,endpoint,keep or "25",mtu or "1420"]
+values=[private,address,pub,psk,allowed,endpoint,keep or "25",mtu or "1420"]
 for value in values:
     print(base64.b64encode(value.encode()).decode())
 PY
@@ -219,7 +219,7 @@ install_tunnel() {
     echo "配置解析失败，请检查是否包含 [Interface] 和 [Peer]。"
     rm -rf "$TMP_DIR"; TMP_DIR=""; pause; return
   fi
-  if (("${#parsed[@]}" != 7)); then
+  if (("${#parsed[@]}" != 8)); then
     echo "配置解析失败：提取到的字段不完整。"
     rm -rf "$TMP_DIR"; TMP_DIR=""; pause; return
   fi
