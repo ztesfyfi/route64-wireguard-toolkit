@@ -90,7 +90,6 @@ query_ipv6() {
     for url in "https://api64.ipify.org" "https://ifconfig.co/ip" "https://icanhazip.com"; do
       addr="$(curl -6 -fsS --connect-timeout 4 --max-time 8 "$url" 2>/dev/null | tr -d '[:space:]' || true)"
       if [[ -n "$addr" ]] && [[ "$addr" =~ ^[0-9A-Fa-f:]+$ ]] && [[ "$addr" == *:* ]]; then
-      then
         printf '\n公网 IPv6：\n  %s\n' "$addr"
         found=1
         break
