@@ -6,6 +6,7 @@
 
 ## 文件说明
 
+- `configure.sh`：读取当前 Route64 面板导出的 WireGuard 配置，辅助生成配置文件；路由前缀由你从当前面板确认输入。
 - `install.sh`：部署 Route64 的 `wg0`，并可选择部署下游 WireGuard 接口 `wg1`。
 - `diagnose.sh`：只读诊断 WireGuard、IPv6 路由与规则、IPv6 转发、防火墙和相关服务状态。
 - `config/config.example`：配置文件模板；下游 ULA 地址默认留空，由安装时随机生成。
@@ -13,16 +14,18 @@
 
 ## 快速开始
 
-1. 将 `config/config.example` 复制为 `config/config.env`，并根据 Route64 控制面板填写配置。
-2. 设置配置文件权限：
+1. 从**当前** Route64 管理面板下载该隧道的 WireGuard `.conf` 文件。
+2. 用辅助脚本导入当前配置，并按提示输入该隧道当前分配的路由前缀：
    ```bash
-   chmod 600 config/config.env
+   bash configure.sh /path/to/current-route64.conf
    ```
-3. 检查安装脚本内容，确认理解其操作后再执行：
+   脚本会生成权限为 `600` 的 `config/config.env`，不会覆盖已有文件。
+3. 检查生成的配置，确认地址和前缀来自当前隧道。若不使用导入助手，也可以复制 `config/config.example` 后手动填写。
+4. 检查安装脚本内容，确认理解其操作后再执行：
    ```bash
    sudo bash install.sh --config config/config.env
    ```
-4. 部署后运行诊断脚本：
+5. 部署后运行诊断脚本：
    ```bash
    sudo bash diagnose.sh
    ```
@@ -58,7 +61,7 @@
 - 可选下游 `wg1` 的服务器和客户端 ULA 地址：配置模板默认留空。启用 wg1 时，安装脚本会生成一个新的随机 ULA 前缀和对应地址，不再使用固定的示例地址。若手动填写，则必须同时填写服务器地址和客户端地址。
 - VPS 当前公网出口地址、网卡和路由属于运行环境信息，不能拿旧记录代替。安装前应在目标 VPS 上重新检查。
 
-Route64 的隧道地址和路由前缀由 Route64 分配，不能仅凭 VPS 本机信息可靠推算；如果当前面板没有提供可用的配置导出/API，就必须由用户从当前面板确认，脚本不会猜测或套用旧值。
+Route64 的隧道地址、对端公钥和 Endpoint 可从当前面板导出的 WireGuard 配置中导入；路由前缀需要从当前隧道页面确认并输入。Route64 的这些分配值不能仅凭 VPS 本机信息可靠推算，工具不会猜测或套用旧值。
 
 ## 配置说明
 
