@@ -16,8 +16,8 @@
 
 ## 文件说明
 
-- `configure.sh`：导入当前 Route64 面板导出的 WireGuard 配置，辅助生成单隧道安装配置。
-- `install.sh`：部署 Route64 的 `wg0`，并可选择部署下游 WireGuard 接口 `wg1`。
+- `install.sh`：中文全屏终端向导，导入 Route64 Linux 配置并部署 `wg0`，提供公网 IPv6 查询和网络状态查看。
+- `configure.sh`：旧版独立配置转换工具，保留给手动配置流程使用。
 - `diagnose.sh`：只读诊断 WireGuard、IPv6 路由与规则、IPv6 转发、防火墙和相关服务状态。
 - `config/config.example`：单隧道安装配置模板。
 - `failover/route64-failover.sh`：双上游健康检测和切换守护脚本。
@@ -25,48 +25,46 @@
 - `failover/route64-failover.env.example`：主备接口和检测参数模板。
 - `docs/TROUBLESHOOTING.md`：常见故障检查方法。
 
-## 单隧道部署方法
+## 单隧道部署与 IPv6 查询
 
-### 推荐：交互式一键安装
+### 中文全屏终端向导
 
-在 VPS 上以 root 身份执行这一条命令：
+在 VPS 上以 root 身份执行：
 
 ```bash
 bash <(curl -fsSL https://raw.githubusercontent.com/ztesfyfi/route64-wireguard-toolkit/main/install.sh)
 ```
 
-脚本会在终端内引导完成：
+脚本进入独立终端页面（支持备用文本模式），主菜单包含：
 
-1. 粘贴 Route64 面板导出的完整 WireGuard 配置（以单独一行 `END` 结束）。
-2. 输入当前这条隧道在 Route64 面板分配的 Routed Prefix。
-3. 选择是否创建下游 WireGuard 服务端 `wg1`，并可输入客户端公钥。
-4. 自动检查配置、安装缺少的 WireGuard 工具、生成必要密钥和 ULA 地址。
-5. 备份现有 WireGuard 目录内容，创建配置并启动服务。
-6. 输出服务状态、下游 UDP 端口和诊断提示。
+1. **创建 / 安装 Route64 IPv6 隧道**：粘贴 Route64 导出的 Linux WireGuard 配置，单独输入 `END` 结束。
+2. **查询 VPS 当前公网 IPv6**：查询公网出口 IPv6，并列出本机全局 IPv6 地址及 wg0 握手状态。
+3. **查看 WireGuard 与 IPv6 状态**：查看接口、路由和 WireGuard 状态。
 
-无需先 clone 仓库、创建 config.env、手动运行 configure.sh，也不需要在安装后再复制一串安装命令。脚本需要从 GitHub 下载配置验证助手，因此 VPS 必须能访问 raw.githubusercontent.com。
+安装器会自动提取 `PrivateKey`、`Address`、`PublicKey`、`AllowedIPs`、`Endpoint`、`PersistentKeepalive` 和可选 `MTU`，生成 `/etc/wireguard/wg0.conf`，校验配置后启动 `wg-quick@wg0`。粘贴内容中附带的注释、`ip route add` 和 `ping` 命令会被忽略，不会写入 WireGuard 配置。
 
-**粘贴配置的方式：** 将 Route64 导出的完整配置内容粘贴到终端，包含 `[Interface]` 和 `[Peer]`。粘贴完后，另起一行输入 `END`。不要把私钥或完整配置发到聊天、工单或公开仓库。
+**不需要手动输入 Routed Prefix、隧道网关或接口名。** 对于常见的 `AllowedIPs = ::/1, 8000::/1`，`wg-quick` 会自动建立 IPv6 分流默认路由。不要再照抄配置注释中使用临时接口名的 `ip route add ::/0 via ...`，否则可能与 WireGuard 自动路由冲突。
 
-### 非交互式/自动化安装
+安装结束会显示 wg0 隧道地址、路由、握手状态、IPv6 连通性测试，以及尝试经 wg0 查询到的公网 IPv6。若 Route64 配置没有 PrivateKey，脚本会生成新密钥并显示**公钥**；必须先将公钥登记到 Route64 面板才能握手。
 
-如果已经有由本项目 `configure.sh` 生成并审核过的可信配置文件，可以继续使用：
+### 单独查询 IPv6
+
+也可以直接调用查询功能：
 
 ```bash
-bash install.sh --config config/config.env
+bash <(curl -fsSL https://raw.githubusercontent.com/ztesfyfi/route64-wireguard-toolkit/main/install.sh) --query-ipv6
 ```
 
-`--config` 模式适合自动化部署。配置文件会被当作 Shell 变量文件加载，因此**只能使用自己生成或确认可信的配置文件**，不要加载来源不明的文件。
+该查询显示当前公网出口 IPv6、本机全局 IPv6 地址和 wg0 握手信息。查询结果取决于 VPS 当前实际出口；没有可用 IPv6 路由时会明确显示查询失败，不会伪造地址。
 
-### 安装边界与安全策略
+### 安装安全边界
 
-- 仅支持 Ubuntu / Debian VPS，必须以 root 身份运行。
-- 如果 `/etc/wireguard/wg0.conf` 已存在，脚本拒绝覆盖；启用 wg1 时也拒绝覆盖已有 `wg1.conf`。
-- 安装前会备份 `/etc/wireguard/` 到 `/root/route64-wg-backups/`；失败时尝试停止新服务、删除本次新建配置并恢复备份。
-- 缺少 Route64 客户端私钥时会生成新密钥并输出公钥。必须先把公钥登记到 Route64 面板，隧道才可能完成握手。
-- 自动启用 IPv6 转发，但不会重写防火墙、修改 IPv4 路由、配置 NAT66 或修改其他 WireGuard 接口。
-- 下游 UDP 端口会从 49152–65535 选择；仍需在云安全组和 VPS 防火墙放行该 UDP 端口。
-- 安装成功代表配置已生成且服务启动，不等于公网 IPv6 已经验证成功。请继续查看握手与 IPv6 探测结果。
+- 仅支持 Ubuntu / Debian VPS；安装功能需要 root 权限。
+- 如果 `/etc/wireguard/wg0.conf` 已存在，脚本拒绝覆盖。
+- 安装前备份 `/etc/wireguard/` 到 `/root/route64-wg-backups/`；启动失败时尝试回滚本次创建的配置。
+- 私钥只写入 VPS 的 root 权限文件，不会上传到 GitHub 或查询服务。
+- 脚本不会自动修改 IPv4 默认路由、防火墙规则、NAT66 或其他 WireGuard 接口。
+- 安装成功不等于公网 IPv6 已经可用；以握手、探测和实际公网 IPv6 查询结果为准。
 
 ## 双 Route64 隧道自动故障切换
 
