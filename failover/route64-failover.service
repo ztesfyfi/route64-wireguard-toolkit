@@ -1,0 +1,19 @@
+[Unit]
+Description=Route64 dual WireGuard uplink failover monitor
+Wants=network-online.target
+After=network-online.target wg-quick@wg0.service wg-quick@wg2.service
+
+[Service]
+Type=simple
+ExecStart=/usr/local/sbin/route64-failover
+Restart=always
+RestartSec=3
+User=root
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectHome=true
+ProtectSystem=full
+ReadWritePaths=/run
+
+[Install]
+WantedBy=multi-user.target
